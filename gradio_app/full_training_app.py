@@ -869,13 +869,15 @@ The checkpoint will be saved automatically.
                                 )
                                 original_size_input = gr.Number(
                                     label="Original Vocab Size",
-                                    value=704,
-                                    precision=0
+                                    value=2454,
+                                    precision=0,
+                                    info="Chatterbox multilingual has 2454 tokens"
                                 )
                                 new_size_input = gr.Number(
                                     label="New Vocab Size",
-                                    value=2000,
-                                    precision=0
+                                    value=3000,
+                                    precision=0,
+                                    info="Must be larger than 2454 (original size)"
                                 )
                                 extended_name = gr.Textbox(
                                     label="Output Name",

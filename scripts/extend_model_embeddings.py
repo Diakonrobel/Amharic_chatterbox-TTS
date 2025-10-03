@@ -70,8 +70,9 @@ def extend_text_embeddings(checkpoint: Dict,
     print("="*60)
     
     # Find embedding layers in the model
-    # Common key names in Chatterbox T3 model
+    # Key names found in Chatterbox T3 model (from inspection)
     embedding_keys = [
+        'text_emb.weight',  # Actual key name in Chatterbox model
         'model.text_embedding.weight',
         'text_embedding.weight',
         'encoder.text_embedding.weight',
@@ -179,8 +180,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--original-size',
         type=int,
-        default=704,
-        help='Original vocabulary size (default: 704)'
+        default=2454,
+        help='Original vocabulary size (default: 2454 for Chatterbox multilingual)'
     )
     parser.add_argument(
         '--new-size',
