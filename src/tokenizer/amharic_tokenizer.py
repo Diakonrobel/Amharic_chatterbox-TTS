@@ -240,10 +240,46 @@ def train_amharic_tokenizer(data_file: str, output_dir: str, vocab_size: int = 5
     
     # Load data
     print("Loading data...")
-    df = pd.read_csv(data_file)
-    texts = df['text'].tolist()
+    
+    # Try to load with different formats
+    try:
+        # First try pipe-delimited (LJSpeech format: filename|text|normalized_text)
+        df = pd.read_csv(data_file, sep='|', header=None, names=['filename', 'text', 'normalized_text'])
+        texts = df['text'].tolist()
+        print(f"✓ Loaded LJSpeech format (pipe-delimited)")
+    except:
+        try:
+            # Try comma-delimited with 'text' column
+            df = pd.read_csv(data_file)
+            if 'text' in df.columns:
+                texts = df['text'].tolist()
+            elif 'normalized_text' in df.columns:
+                texts = df['normalized_text'].tolist()
+            else:
+                # Use first text column found
+                text_cols = [col for col in df.columns if 'text' in col.lower()]
+                if text_cols:
+                    texts = df[text_cols[0]].tolist()
+                else:
+                    raise ValueError(f"No 'text' column found. Available columns: {df.columns.tolist()}")
+            print(f"✓ Loaded CSV format")
+        except Exception as e:
+            raise ValueError(f"Could not load data file. Error: {e}")
+    
+    # Validate data
+    if not texts:
+        raise ValueError("No text data found in the file!")
+    
+    # Remove empty texts
+    texts = [t for t in texts if t and str(t).strip()]
+    
+    if not texts:
+        raise ValueError("All text entries are empty!")
     
     print(f"Training tokenizer on {len(texts)} samples...")
+    print(f"Sample texts:")
+    for i, text in enumerate(texts[:3]):
+        print(f"  {i+1}. {text[:100]}...")
     
     # Initialize
     g2p = AmharicG2P()
