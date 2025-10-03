@@ -223,7 +223,7 @@ def setup_dataloaders(config: Dict):
     
     TRAINING_STATE.log(f"✓ Train samples: {len(train_dataset)}")
     TRAINING_STATE.log(f"✓ Val samples: {len(val_dataset)}")
-    TRAINING_STATE.log(f"✓ Batch size: {config['training']['batch_size']}")
+    TRAINING_STATE.log(f"✓ Batch size: {batch_size}")
     
     return train_loader, val_loader
 
