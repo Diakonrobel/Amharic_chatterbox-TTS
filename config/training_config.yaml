@@ -42,7 +42,7 @@ data:
   
   # Data loading
   batch_size: 16
-  num_workers: 4
+  num_workers: 2  # Reduced for Lightning AI stability
   pin_memory: true
 
 # Training hyperparameters

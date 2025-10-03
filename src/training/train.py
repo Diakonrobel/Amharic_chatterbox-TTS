@@ -167,8 +167,16 @@ def setup_dataloaders(config: Dict):
             except Exception as e:
                 TRAINING_STATE.log(f"⚠ Failed to load tokenizer from {tokenizer_path}: {str(e)}")
     
-    # Create datasets
-    data_dir = Path(config['paths']['data_dir'])
+    # Create datasets - handle multiple config formats
+    if 'data_dir' in config.get('paths', {}):
+        data_dir = Path(config['paths']['data_dir'])
+    elif 'dataset_path' in config.get('data', {}):
+        data_dir = Path(config['data']['dataset_path'])
+    else:
+        # Fallback to default
+        data_dir = Path("data/srt_datasets/my_dataset")
+        TRAINING_STATE.log(f"⚠ No data_dir in config, using default: {data_dir}")
+    
     train_metadata = data_dir / 'metadata.csv'
     val_metadata = data_dir / 'metadata_val.csv'  # Or use a split
     
@@ -192,20 +200,23 @@ def setup_dataloaders(config: Dict):
     )
     
     # Create dataloaders with proper collate function
+    batch_size = config.get('training', {}).get('batch_size', 16)
+    num_workers = config.get('training', {}).get('num_workers', 2)
+    
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config['training']['batch_size'],
+        batch_size=batch_size,
         shuffle=True,
-        num_workers=config['training']['num_workers'],
+        num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=True
     )
     
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config['training']['batch_size'],
+        batch_size=batch_size,
         shuffle=False,
-        num_workers=config['training']['num_workers'],
+        num_workers=num_workers,
         collate_fn=collate_fn,
         pin_memory=True
     )

@@ -754,15 +754,26 @@ Then try again.
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
             
-            # Update config with UI parameters
+            # Update config with UI parameters - ensure sections exist
+            if 'data' not in config:
+                config['data'] = {}
+            if 'training' not in config:
+                config['training'] = {}
+            if 'model' not in config:
+                config['model'] = {}
+            if 'paths' not in config:
+                config['paths'] = {}
+            
             config['data']['dataset_path'] = dataset_path
             config['data']['batch_size'] = batch_size
+            config['paths']['data_dir'] = dataset_path  # Also set data_dir for compatibility
             config['training']['learning_rate'] = learning_rate
             config['training']['max_epochs'] = max_epochs
             config['training']['max_steps'] = max_steps
             config['training']['save_interval'] = save_interval
             config['training']['eval_interval'] = eval_interval
             config['training']['use_amp'] = use_amp
+            config['training']['num_workers'] = config.get('training', {}).get('num_workers', 2)
             config['model']['freeze_original_embeddings'] = freeze_embeddings
             config['model']['freeze_until_index'] = freeze_until_idx
             
