@@ -1,0 +1,120 @@
+# Amharic TTS Training Configuration
+
+model:
+  name: "chatterbox_amharic"
+  architecture: "chatterbox"
+  
+  # Model dimensions
+  hidden_channels: 192
+  filter_channels: 768
+  n_heads: 2
+  n_layers: 6
+  kernel_size: 3
+  p_dropout: 0.1
+  
+  # Vocabulary settings (update after tokenizer merge)
+  original_vocab_size: 704  # Base Chatterbox English vocabulary
+  n_vocab: 2000  # Extended vocabulary with Amharic tokens
+  use_phonemes: true
+  
+  # Freeze original embeddings to preserve English (from video experience)
+  freeze_original_embeddings: true
+  freeze_until_index: 704  # Freeze first 704 embeddings (English tokens)
+
+# Dataset configuration
+data:
+  dataset_path: "data/processed/ljspeech_format"
+  metadata_file: "metadata.csv"
+  
+  # Audio settings
+  sampling_rate: 22050
+  filter_length: 1024
+  hop_length: 256
+  win_length: 1024
+  n_mel_channels: 80
+  mel_fmin: 0.0
+  mel_fmax: 8000.0
+  
+  # Data splits
+  train_ratio: 0.85
+  val_ratio: 0.10
+  test_ratio: 0.05
+  
+  # Data loading
+  batch_size: 16
+  num_workers: 4
+  pin_memory: true
+
+# Training hyperparameters
+training:
+  # Optimization
+  optimizer: "AdamW"
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  betas: [0.8, 0.99]
+  eps: 1.0e-9
+  
+  # Learning rate schedule
+  lr_scheduler: "ExponentialLR"
+  lr_decay: 0.999875
+  warmup_steps: 4000
+  
+  # Training duration
+  max_epochs: 1000
+  max_steps: 500000
+  
+  # Checkpointing
+  save_interval: 5000
+  eval_interval: 1000
+  log_interval: 100
+  
+  # Gradient
+  grad_clip_thresh: 1.0
+  grad_accumulation_steps: 1
+  
+  # Mixed precision
+  use_amp: true
+  
+  # Multi-GPU
+  use_ddp: false
+  gpu_ids: [0]
+
+# Fine-tuning from pretrained model
+finetuning:
+  enabled: true
+  pretrained_model: "models/pretrained/chatterbox_base.pt"
+  
+  # What to freeze (based on video experience)
+  freeze_encoder: false
+  freeze_decoder: false
+  freeze_vocoder: true  # Keep vocoder frozen initially
+
+# Logging
+logging:
+  use_wandb: false
+  wandb_project: "amharic-tts"
+  wandb_entity: null
+  
+  use_tensorboard: true
+  log_dir: "logs"
+  
+  # What to log
+  log_audio: true
+  log_spectrograms: true
+  log_alignments: true
+
+# Validation
+validation:
+  n_samples: 5
+  sample_texts:
+    - "ሰላም ለዓለም"
+    - "አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት"
+    - "እንኳን ደህና መጡ"
+    - "አማርኛ በጌዕዝ ፊደል ይጻፋል"
+    - "ኢትዮጵያ በምስራቅ አፍሪካ የምትገኝ ሀገር ናት"
+
+# Paths
+paths:
+  tokenizer: "models/tokenizer"
+  extended_model: "models/pretrained/chatterbox_extended.pt"
+  checkpoints: "models/checkpoints"

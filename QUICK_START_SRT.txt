@@ -1,0 +1,197 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                   SRT DATASET IMPORT - QUICK START                        ║
+║                      Amharic TTS Training System                          ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+📋 WHAT YOU HAVE NOW:
+━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Complete SRT import system
+✅ Automatic audio extraction from video
+✅ Quality validation and filtering
+✅ Batch import for multiple files
+✅ Dataset merging capabilities
+✅ Cross-platform CLI interface
+✅ Python API for automation
+✅ 2,000+ lines of production-ready code
+
+📁 FILES CREATED:
+━━━━━━━━━━━━━━━━━━━━━━━━
+1. src/data_processing/srt_dataset_builder.py  (709 lines)
+2. src/data_processing/dataset_manager.py      (763 lines)
+3. import_srt_datasets.ps1                     (195 lines)
+4. examples/example_srt_import.py              (272 lines)
+5. SRT_IMPORT_README.md                        (Complete guide)
+
+🚀 HOW TO USE:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+METHOD 1: PowerShell Quick Start (Easiest)
+------------------------------------------
+cd amharic-tts
+.\import_srt_datasets.ps1
+
+
+METHOD 2: Interactive Menu
+---------------------------
+cd amharic-tts\src\data_processing
+python dataset_manager.py
+
+
+METHOD 3: Command Line
+----------------------
+cd amharic-tts\src\data_processing
+python srt_dataset_builder.py import --srt FILE.srt --media FILE.mp4 --name DATASET
+
+
+METHOD 4: Python API
+--------------------
+from srt_dataset_builder import SRTDatasetBuilder
+builder = SRTDatasetBuilder()
+builder.import_from_srt("file.srt", "file.mp4", "my_dataset")
+
+
+📖 COMMON COMMANDS:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Import single file
+python srt_dataset_builder.py import --srt video.srt --media video.mp4 --name dataset1
+
+# List all datasets
+python srt_dataset_builder.py list
+
+# Merge datasets
+python srt_dataset_builder.py merge --datasets d1 d2 d3 --output merged
+
+# Interactive menu (recommended)
+python dataset_manager.py
+
+
+💡 WORKFLOW:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step 1: Prepare Your Files
+   • Collect video/audio files with Amharic speech
+   • Create/download SRT subtitle files
+   • Ensure matching filenames (video.srt + video.mp4)
+
+Step 2: Import
+   .\import_srt_datasets.ps1
+   → Choose option 1 or 2
+
+Step 3: Review Statistics
+   python dataset_manager.py
+   → Select: 4. View Dataset Statistics
+
+Step 4: Merge (if multiple imports)
+   python dataset_manager.py
+   → Select: 3. Merge Datasets
+
+Step 5: Prepare for Training
+   python dataset_manager.py
+   → Select: 8. Prepare for Training
+
+Step 6: Train Tokenizer
+   cd ..\..\
+   python -c "from src.tokenizer.amharic_tokenizer import train_amharic_tokenizer; ..."
+
+Step 7: Update Config
+   Edit: config/training_config.yaml
+
+Step 8: Start Training
+   Follow main README
+
+
+📋 REQUIREMENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Python 3.10+
+✅ FFmpeg (for video processing)
+   Windows: choco install ffmpeg
+   Linux:   sudo apt install ffmpeg
+   macOS:   brew install ffmpeg
+
+✅ Python packages (already in requirements.txt):
+   - numpy, pandas, librosa, soundfile, tqdm
+
+
+📊 FEATURES:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Import:
+  ✓ Single SRT+media import
+  ✓ Batch import from directory
+  ✓ Video to audio extraction
+  ✓ Timestamp-based segmentation
+
+Validation:
+  ✓ Duration checks (1-15s)
+  ✓ Silence detection
+  ✓ Clipping detection
+  ✓ Energy level checks
+  ✓ Text quality checks
+
+Management:
+  ✓ Merge multiple datasets
+  ✓ Filter invalid segments
+  ✓ Calculate statistics
+  ✓ LJSpeech format output
+
+
+🐛 TROUBLESHOOTING:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Problem: "ffmpeg not found"
+Solution: Install FFmpeg and add to PATH
+  https://ffmpeg.org/download.html
+
+Problem: "No matching media file"
+Solution: Ensure SRT and media files have same name
+  ✅ video.srt + video.mp4
+  ❌ video.srt + video_HD.mp4
+
+Problem: Import is slow
+Solution: Large videos take time. Extract audio first:
+  ffmpeg -i video.mp4 -vn -ar 22050 -ac 1 audio.wav
+
+Problem: Too many invalid segments
+Solution: Check SRT timing accuracy and audio quality
+
+
+📞 HELP:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Full Documentation: SRT_IMPORT_README.md
+2. Interactive Help:   python dataset_manager.py → Select 9
+3. Examples:           python examples/example_srt_import.py
+4. Main Project:       README.md
+
+
+✅ CHECKLIST BEFORE TRAINING:
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ FFmpeg installed
+□ SRT files match media files
+□ Imported dataset(s)
+□ Reviewed statistics (10+ hours recommended)
+□ Merged if needed
+□ Copied to data/processed/
+□ Trained tokenizer
+□ Updated config/training_config.yaml
+
+
+🎉 YOU'RE READY!
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Quick test:
+  1. cd amharic-tts
+  2. .\import_srt_datasets.ps1
+  3. Follow the menu!
+
+Full guide: SRT_IMPORT_README.md
+
+═══════════════════════════════════════════════════════════════════════════
+
+የአማርኛ ድምጽ ማሰልጠኛ ዳታሴት ለማዘጋጀት ዝግጁ ነው!
+Ready to prepare Amharic TTS training datasets!
+
+═══════════════════════════════════════════════════════════════════════════
