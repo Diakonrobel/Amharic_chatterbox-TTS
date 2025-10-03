@@ -300,6 +300,104 @@ To generate actual audio, train the model first.
         except Exception as e:
             return f"❌ **Merge Failed**\n\nError: {str(e)}"
     
+    def download_chatterbox_ui(self, model_type: str) -> str:
+        """Download Chatterbox pretrained model"""
+        try:
+            from huggingface_hub import hf_hub_download
+            
+            output_dir = Path("models") / "pretrained" / "chatterbox"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            result_msg = f"""
+🔄 **Downloading Chatterbox {model_type} Model...**
+
+This may take 5-20 minutes depending on your connection.
+
+**Model Size:**
+- English: ~1 GB
+- Multilingual (23 languages): ~3.2 GB
+
+Please wait...
+"""
+            
+            # Download tokenizer
+            tokenizer_file = "mtl_tokenizer.json" if model_type == "Multilingual" else "tokenizer.json"
+            model_file = "t3_mtl23ls_v2.safetensors" if model_type == "Multilingual" else "t3_cfg.safetensors"
+            
+            files_to_download = [
+                (tokenizer_file, "Tokenizer"),
+                (model_file, "Model Weights"),
+                ("s3gen.safetensors", "Speech Generator"),
+                ("ve.safetensors", "Voice Encoder"),
+                ("conds.pt", "Conditioning")
+            ]
+            
+            downloaded = []
+            for filename, description in files_to_download:
+                try:
+                    path = hf_hub_download(
+                        repo_id="ResembleAI/chatterbox",
+                        filename=filename,
+                        local_dir=str(output_dir)
+                    )
+                    downloaded.append(f"✓ {description}: {filename}")
+                except Exception as e:
+                    if "conds.pt" in filename or "ve." in filename:
+                        downloaded.append(f"⚠ {description}: Optional, skipped")
+                    else:
+                        return f"❌ Failed to download {filename}: {str(e)}"
+            
+            # Extract tokenizer vocabulary
+            vocab_path = output_dir / tokenizer_file
+            if vocab_path.exists():
+                import json
+                with open(vocab_path, 'r', encoding='utf-8') as f:
+                    tok_data = json.load(f)
+                
+                vocab = {}
+                if 'model' in tok_data and 'vocab' in tok_data['model']:
+                    vocab = tok_data['model']['vocab']
+                elif 'vocab' in tok_data:
+                    vocab = tok_data['vocab']
+                
+                if vocab:
+                    vocab_output = Path("models") / "pretrained" / "chatterbox_tokenizer.json"
+                    with open(vocab_output, 'w', encoding='utf-8') as f:
+                        json.dump(vocab, f, ensure_ascii=False, indent=2)
+                    downloaded.append(f"✓ Extracted vocabulary: {len(vocab)} tokens")
+            
+            return f"""
+✅ **Download Complete!**
+
+**Model Type:** Chatterbox {model_type}
+**Location:** `models/pretrained/chatterbox/`
+
+**Downloaded Files:**
+{chr(10).join(downloaded)}
+
+**Next Steps:**
+1. ✓ Tokenizer ready at: `models/pretrained/chatterbox_tokenizer.json`
+2. Merge tokenizers (below)
+3. Extend model embeddings (below)
+4. Start training!
+
+**Supported Languages:** {"English only" if model_type == "English" else "23 languages (Arabic, Chinese, English, French, German, Hindi, Italian, Japanese, Korean, Portuguese, Russian, Spanish, and more!)"}
+"""
+            
+        except ImportError:
+            return f"""
+❌ **Missing Dependency**
+
+Please install huggingface_hub:
+```bash
+pip install huggingface_hub
+```
+
+Then try again.
+"""
+        except Exception as e:
+            return f"❌ **Download Failed**\n\nError: {str(e)}"
+    
     def extend_embeddings_ui(self, model_path: str, original_size: int, new_size: int, output_name: str) -> str:
         """Extend model embeddings"""
         if not model_path or not model_path.strip():
@@ -665,15 +763,49 @@ The checkpoint will be saved automatically.
                 with gr.Tab("🔧 Model Setup"):
                     gr.Markdown("""
                     ### 🔧 Prepare Model for Training
-                    Merge tokenizers and extend model embeddings.
+                    
+                    **Step-by-step setup for fine-tuning:**
+                    1. Download Chatterbox pretrained model (optional but recommended)
+                    2. Merge tokenizers (base + Amharic)
+                    3. Extend model embeddings
                     """)
+                    
+                    with gr.Accordion("0️⃣ Download Chatterbox Model (Optional)", open=True):
+                        gr.Markdown("""
+                        **Download official Chatterbox pretrained models for better quality.**
+                        
+                        - **English**: Fast download (~1 GB), English-only TTS
+                        - **Multilingual**: Larger download (~3.2 GB), supports 23 languages + zero-shot voice cloning
+                        
+                        Skip this if you want to train from scratch (Amharic-only).
+                        """)
+                        with gr.Row():
+                            with gr.Column():
+                                model_type_dropdown = gr.Dropdown(
+                                    label="Model Type",
+                                    choices=["English", "Multilingual"],
+                                    value="Multilingual",
+                                    info="Multilingual recommended for best quality"
+                                )
+                                download_btn = gr.Button("📥 Download Chatterbox Model", variant="primary")
+                            
+                            with gr.Column():
+                                download_results = gr.Markdown(value="ℹ️ Select model type and click 'Download'")
+                        
+                        download_btn.click(
+                            fn=self.download_chatterbox_ui,
+                            inputs=[model_type_dropdown],
+                            outputs=download_results
+                        )
                     
                     with gr.Accordion("1️⃣ Merge Tokenizers", open=True):
                         with gr.Row():
                             with gr.Column():
                                 base_tokenizer_path = gr.Textbox(
                                     label="Base Tokenizer Path",
-                                    placeholder="models/pretrained/chatterbox_tokenizer.json"
+                                    placeholder="models/pretrained/chatterbox_tokenizer.json",
+                                    value="models/pretrained/chatterbox_tokenizer.json",
+                                    info="Auto-filled if you downloaded Chatterbox above"
                                 )
                                 amharic_tokenizer_path = gr.Textbox(
                                     label="Amharic Tokenizer Path",
@@ -694,7 +826,9 @@ The checkpoint will be saved automatically.
                             with gr.Column():
                                 model_path_input = gr.Textbox(
                                     label="Base Model Path",
-                                    placeholder="models/pretrained/chatterbox_base.pt"
+                                    placeholder="models/pretrained/chatterbox/t3_mtl23ls_v2.safetensors",
+                                    value="models/pretrained/chatterbox/t3_mtl23ls_v2.safetensors",
+                                    info="Path to downloaded Chatterbox model"
                                 )
                                 original_size_input = gr.Number(
                                     label="Original Vocab Size",
