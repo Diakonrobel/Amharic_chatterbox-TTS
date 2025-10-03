@@ -1,47 +1,90 @@
-# Core Dependencies
-torch>=2.1.0
-torchaudio>=2.1.0
-numpy>=1.24.0
-scipy>=1.11.0
+# ============================================================
+# AMHARIC TTS TRAINING SYSTEM - REQUIREMENTS
+# Updated for PyTorch 2.x and Chatterbox Integration
+# ============================================================
 
-# Chatterbox TTS
-git+https://github.com/Diakonrobel/chatterbox-finetune.git
+# Core Deep Learning Framework
+torch>=2.0.0,<3.0.0
+torchaudio>=2.0.0,<3.0.0
+torchvision>=0.15.0,<1.0.0
+numpy>=1.24.0,<2.0.0
+scipy>=1.11.0,<2.0.0
 
-# G2P and Text Processing
+# Chatterbox TTS (Optional - remove if causing issues)
+# git+https://github.com/Diakonrobel/chatterbox-finetune.git
+
+# G2P and Text Processing (Amharic phoneme conversion)
 epitran>=1.24
 panphon>=0.20
 unicodedata2>=15.0.0
+regex>=2023.0.0
 
-# Tokenization
+# Tokenization (SentencePiece for Amharic)
 tokenizers>=0.15.0
 sentencepiece>=0.1.99
 transformers>=4.35.0
 
-# Audio Processing
+# Audio Processing (for dataset preparation and augmentation)
 librosa>=0.10.0
 soundfile>=0.12.0
 pydub>=0.25.1
 audiomentations>=0.33.0
+resampy>=0.4.0
 
-# Training Utilities
+# Model Loading and Serialization (for Chatterbox model)
+safetensors>=0.4.0
+huggingface-hub>=0.20.0
+
+# Training Utilities (experiment tracking and monitoring)
 pytorch-lightning>=2.1.0
 wandb>=0.16.0
 tensorboard>=2.15.0
 
-# UI
+# Web UI (interactive training interface)
 gradio>=4.10.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
 
-# Data Processing
+# Data Processing (dataset management and SRT handling)
 pandas>=2.1.0
 pyyaml>=6.0
 tqdm>=4.66.0
+srt>=3.5.0
+chardet>=5.0.0
 
-# Evaluation
+# Evaluation (quality metrics for TTS)
 jiwer>=3.0.0
 pesq>=0.0.4
 pystoi>=0.3.3
 
-# Development
+# Development (code quality and testing)
 pytest>=7.4.0
 black>=23.0.0
 flake8>=6.1.0
+
+# ============================================================
+# INSTALLATION NOTES
+# ============================================================
+#
+# Quick Install:
+#   pip install -r requirements.txt
+#
+# For Lightning AI / Cloud:
+#   pip install -r requirements.txt --no-cache-dir
+#
+# Minimum PyTorch Version: 2.0.0 (for torch.amp support)
+#
+# Optional GPU Setup:
+#   - CUDA 11.8+: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+#   - CUDA 12.1+: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# For M1/M2 Mac:
+#   pip install torch torchvision torchaudio
+#
+# Known Issues:
+#   - If ffmpeg errors occur, install system ffmpeg:
+#     Ubuntu/Debian: sudo apt-get install ffmpeg
+#     macOS: brew install ffmpeg
+#     Windows: Download from ffmpeg.org
+#
+# ============================================================
