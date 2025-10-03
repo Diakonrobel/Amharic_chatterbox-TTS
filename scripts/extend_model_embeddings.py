@@ -16,12 +16,37 @@ import torch
 import argparse
 from pathlib import Path
 from typing import Dict
+import os
 
 
 def load_chatterbox_model(model_path: str) -> Dict:
     """Load Chatterbox T3 model checkpoint"""
     print(f"Loading model from: {model_path}")
-    checkpoint = torch.load(model_path, map_location='cpu')
+    
+    # Check if it's a safetensors file
+    if model_path.endswith('.safetensors'):
+        try:
+            from safetensors import safe_open
+            from safetensors.torch import load_file
+            
+            print("  Loading safetensors file...")
+            # Load as state dict
+            state_dict = load_file(model_path)
+            checkpoint = {'model': state_dict}
+            print(f"  ✓ Loaded {len(state_dict)} tensors")
+            return checkpoint
+        except ImportError:
+            print("  ⚠ safetensors not installed, trying torch.load...")
+            # Fall through to torch.load
+    
+    # For PyTorch 2.6+, need to set weights_only=False
+    # The Chatterbox model is from a trusted source (ResembleAI official)
+    try:
+        checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
+    except TypeError:
+        # Fallback for older PyTorch versions that don't have weights_only parameter
+        checkpoint = torch.load(model_path, map_location='cpu')
+    
     return checkpoint
 
 
