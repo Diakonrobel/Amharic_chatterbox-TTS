@@ -19,7 +19,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 import torch.optim as optim
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -226,19 +226,22 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
     """Train for one epoch"""
     model.train()
     total_loss = 0
+    device = next(model.parameters()).device
     
     for batch_idx, batch in enumerate(train_loader):
         TRAINING_STATE.current_step += 1
+        optimizer.zero_grad()
         
         # TODO: Implement actual forward pass
-        # For now, use dummy loss
-        loss = torch.tensor(1.0, requires_grad=True)
-        
-        # Backward pass
+        # For now, use dummy loss computation
         if config['training']['use_amp']:
-            with autocast():
-                # loss = model(batch)  # TODO: Implement
-                pass
+            with autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
+                # Dummy computation inside autocast
+                dummy_input = torch.randn(1, 10, device=device)
+                dummy_output = model.linear(model.embedding(torch.tensor([0], device=device)))
+                loss = dummy_output.mean()  # Dummy loss
+            
+            # Backward with gradient scaling
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(
@@ -248,14 +251,17 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
             scaler.step(optimizer)
             scaler.update()
         else:
+            # Dummy computation without autocast
+            dummy_input = torch.randn(1, 10, device=device)
+            dummy_output = model.linear(model.embedding(torch.tensor([0], device=device)))
+            loss = dummy_output.mean()  # Dummy loss
+            
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 model.parameters(),
                 config['training']['grad_clip_thresh']
             )
             optimizer.step()
-        
-        optimizer.zero_grad()
         
         total_loss += loss.item()
         TRAINING_STATE.current_loss = loss.item()
@@ -369,7 +375,7 @@ def train(config_path: str, resume_from: Optional[str] = None):
         train_loader, val_loader = setup_dataloaders(config)
         
         # Setup mixed precision
-        scaler = GradScaler() if config['training']['use_amp'] else None
+        scaler = GradScaler(device='cuda' if torch.cuda.is_available() else 'cpu') if config['training']['use_amp'] else None
         
         # Setup tensorboard
         if config['logging']['use_tensorboard']:
