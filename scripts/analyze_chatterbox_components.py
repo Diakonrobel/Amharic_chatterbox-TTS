@@ -5,12 +5,26 @@ Run this to understand what you have and what's next
 
 from pathlib import Path
 import json
+import os
 
 print("="*70)
 print("CHATTERBOX COMPONENTS ANALYSIS")
 print("="*70)
+print(f"\nCurrent directory: {os.getcwd()}")
 
 base_path = Path("models/pretrained/chatterbox")
+if not base_path.exists():
+    print(f"\n⚠️  Warning: {base_path} not found!")
+    print("Trying alternative path...")
+    base_path = Path("../models/pretrained/chatterbox")
+    if not base_path.exists():
+        print("❌ Could not find models directory!")
+        print("\nPlease run this script from the project root:")
+        print("  cd ~/Amharic_chatterbox-TTS")
+        print("  python scripts/analyze_chatterbox_components.py")
+        exit(1)
+
+print(f"Using model path: {base_path.absolute()}")
 
 components = [
     ("mtl_tokenizer.json", "Multilingual Tokenizer"),

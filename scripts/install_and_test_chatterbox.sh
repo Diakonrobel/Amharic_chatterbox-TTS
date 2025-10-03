@@ -77,7 +77,7 @@ PYEOF
 # Step 4: Check our downloaded Chatterbox model
 echo ""
 echo "[4/6] Checking our downloaded Chatterbox model..."
-cd /teamspace/studios/this_studio/amharic-tts
+cd ~/Amharic_chatterbox-TTS 2>/dev/null || cd /teamspace/studios/this_studio/Amharic_chatterbox-TTS 2>/dev/null || cd "$(dirname "$0")/.." 2>/dev/null || echo "Warning: Could not determine project directory"
 
 if [ -f "models/pretrained/chatterbox/t3_mtl23ls_v2.safetensors" ]; then
     echo "✓ Chatterbox multilingual model found"
