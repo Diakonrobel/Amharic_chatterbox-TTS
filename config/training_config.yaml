@@ -115,6 +115,7 @@ validation:
 
 # Paths
 paths:
+  data_dir: "data/srt_datasets/my_dataset"
   tokenizer: "models/tokenizer"
   extended_model: "models/pretrained/chatterbox_extended.pt"
   checkpoints: "models/checkpoints"

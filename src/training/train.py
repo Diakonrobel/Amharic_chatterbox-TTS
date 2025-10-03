@@ -148,8 +148,24 @@ def setup_dataloaders(config: Dict):
     # Initialize audio processor
     audio_processor = AudioProcessor()
     
-    # TODO: Add tokenizer loading here if needed
-    tokenizer = None  # Replace with actual tokenizer if available
+    # Try to load tokenizer if available
+    tokenizer = None
+    tokenizer_paths = [
+        "models/tokenizer",
+        "models/tokenizer/amharic_tokenizer"
+    ]
+    
+    for tokenizer_path in tokenizer_paths:
+        if Path(tokenizer_path).exists():
+            try:
+                from src.tokenizer.amharic_tokenizer import AmharicTokenizer
+                from src.g2p.amharic_g2p import AmharicG2P
+                g2p = AmharicG2P()
+                tokenizer = AmharicTokenizer.load(tokenizer_path, g2p=g2p)
+                TRAINING_STATE.log(f"✓ Loaded tokenizer from {tokenizer_path}")
+                break
+            except Exception as e:
+                TRAINING_STATE.log(f"⚠ Failed to load tokenizer from {tokenizer_path}: {str(e)}")
     
     # Create datasets
     data_dir = Path(config['paths']['data_dir'])
