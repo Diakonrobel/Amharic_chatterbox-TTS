@@ -752,7 +752,8 @@ The checkpoint will be saved automatically.
                                     choices=self.get_available_checkpoints(),
                                     value="None (Start from scratch)",
                                     info="Select a checkpoint to resume training",
-                                    interactive=True
+                                    interactive=True,
+                                    allow_custom_value=True
                                 )
                                 refresh_checkpoints_btn = gr.Button(
                                     "🔄",

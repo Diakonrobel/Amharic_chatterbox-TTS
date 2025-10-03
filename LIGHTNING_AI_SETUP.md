@@ -255,7 +255,79 @@ Lightning AI sessions can timeout, so save often!
 
 ---
 
-## 🐛 Troubleshooting
+## ⚠️ Fixing Warnings in Your Logs
+
+### 1. ✅ FIXED: Gradio Dropdown Warning
+
+**Warning you saw:**
+```
+UserWarning: The value passed into gr.Dropdown() is not in the list of choices.
+```
+
+**Status:** ✅ **FIXED** - Code has been updated with `allow_custom_value=True`
+
+### 2. FFmpeg Not Found
+
+**Warning:**
+```
+⚠️  Warning: ffmpeg not found. Some features may be limited.
+```
+
+**Fix on Lightning AI:**
+```bash
+# Install via conda (recommended)
+conda install -y -c conda-forge ffmpeg
+
+# Verify installation
+ffmpeg -version
+```
+
+### 3. Tokenizer Not Found
+
+**Warning:**
+```
+⚠ Tokenizer not found
+```
+
+**This is EXPECTED!** You need to train it first:
+
+1. Import dataset (Tab 2: Dataset Import)
+2. Train tokenizer (Tab 4: Tokenizer Training)
+   - Dataset Path: `data/srt_datasets/your_dataset/metadata.csv`
+   - Vocabulary Size: 500-2000
+   - Click "🚀 Train Tokenizer"
+
+### 4. TTS Model Not Loaded
+
+**Warning:**
+```
+⚠ TTS model not loaded (placeholder mode)
+```
+
+**This is EXPECTED!** The model needs training:
+
+1. Complete dataset import + tokenizer training
+2. Go to Tab 6: "🎓 Training Pipeline"
+3. Configure and start training
+
+### 5. Advanced Audio Splitter Not Available
+
+**Warning:**
+```
+Warning: Advanced audio splitter not available. Using basic extraction.
+```
+
+**Fix:**
+```bash
+pip install --upgrade pydub soundfile librosa
+conda install -y -c conda-forge ffmpeg
+```
+
+**Note:** Basic extraction still works, but advanced splitter provides better quality.
+
+---
+
+## 🐛 Other Troubleshooting
 
 ### Issue: Out of Memory
 ```yaml
