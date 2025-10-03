@@ -224,4 +224,5 @@ def collate_fn(batch):
 
 
 # Default audio processor instance
-default_audio_processor = AudioProcessor()
+# Commented out to avoid initialization errors on import
+# default_audio_processor = AudioProcessor()

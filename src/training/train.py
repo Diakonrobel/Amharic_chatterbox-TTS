@@ -139,6 +139,68 @@ def load_config(config_path: str) -> Dict:
     return config
 
 
+def setup_dataloaders(config: Dict):
+    """Setup training and validation dataloaders"""
+    from pathlib import Path
+    
+    TRAINING_STATE.log("Setting up dataloaders...")
+    
+    # Initialize audio processor
+    audio_processor = AudioProcessor()
+    
+    # TODO: Add tokenizer loading here if needed
+    tokenizer = None  # Replace with actual tokenizer if available
+    
+    # Create datasets
+    data_dir = Path(config['paths']['data_dir'])
+    train_metadata = data_dir / 'metadata.csv'
+    val_metadata = data_dir / 'metadata_val.csv'  # Or use a split
+    
+    # Check if validation metadata exists, otherwise use train for both
+    if not val_metadata.exists():
+        TRAINING_STATE.log("⚠ No separate validation metadata, using training data")
+        val_metadata = train_metadata
+    
+    train_dataset = SimpleAmharicDataset(
+        str(train_metadata),
+        data_dir,
+        audio_processor=audio_processor,
+        tokenizer=tokenizer
+    )
+    
+    val_dataset = SimpleAmharicDataset(
+        str(val_metadata),
+        data_dir,
+        audio_processor=audio_processor,
+        tokenizer=tokenizer
+    )
+    
+    # Create dataloaders with proper collate function
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=True,
+        num_workers=config['training']['num_workers'],
+        collate_fn=collate_fn,
+        pin_memory=True
+    )
+    
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config['training']['batch_size'],
+        shuffle=False,
+        num_workers=config['training']['num_workers'],
+        collate_fn=collate_fn,
+        pin_memory=True
+    )
+    
+    TRAINING_STATE.log(f"✓ Train samples: {len(train_dataset)}")
+    TRAINING_STATE.log(f"✓ Val samples: {len(val_dataset)}")
+    TRAINING_STATE.log(f"✓ Batch size: {config['training']['batch_size']}")
+    
+    return train_loader, val_loader
+
+
 def setup_model(config: Dict) -> nn.Module:
     """Setup real T3 model for training"""
     TRAINING_STATE.log("Setting up SimplifiedT3Model...")
@@ -220,7 +282,7 @@ def setup_optimizer(model: nn.Module, config: Dict):
 
 
 
-def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch):
+def train_epoch(model, train_loader, optimizer, scheduler, scaler, criterion, writer, config, epoch):
     """Train for one epoch"""
     model.train()
     total_loss = 0
@@ -230,14 +292,29 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
         TRAINING_STATE.current_step += 1
         optimizer.zero_grad()
         
-        # TODO: Implement actual forward pass
-        # For now, use dummy loss computation
+        # Move batch to device
+        text_ids = batch['text_ids'].to(device)
+        text_lengths = batch['text_lengths'].to(device)
+        mel_targets = batch['mel'].to(device)
+        mel_lengths = batch['mel_lengths'].to(device)
+        
+        # Forward pass and loss computation
         if config['training']['use_amp']:
             with autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu'):
-                # Dummy computation inside autocast
-                dummy_input = torch.randn(1, 10, device=device)
-                dummy_output = model.linear(model.embedding(torch.tensor([0], device=device)))
-                loss = dummy_output.mean()  # Dummy loss
+                # Model forward
+                outputs = model(
+                    text_ids=text_ids,
+                    text_lengths=text_lengths,
+                    mel_targets=mel_targets
+                )
+                
+                # Compute loss
+                targets = {
+                    'mel': mel_targets,
+                    'mel_lengths': mel_lengths
+                }
+                losses = criterion(outputs, targets)
+                loss = losses['total_loss']
             
             # Backward with gradient scaling
             scaler.scale(loss).backward()
@@ -249,11 +326,22 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
             scaler.step(optimizer)
             scaler.update()
         else:
-            # Dummy computation without autocast
-            dummy_input = torch.randn(1, 10, device=device)
-            dummy_output = model.linear(model.embedding(torch.tensor([0], device=device)))
-            loss = dummy_output.mean()  # Dummy loss
+            # Forward without autocast
+            outputs = model(
+                text_ids=text_ids,
+                text_lengths=text_lengths,
+                mel_targets=mel_targets
+            )
             
+            # Compute loss
+            targets = {
+                'mel': mel_targets,
+                'mel_lengths': mel_lengths
+            }
+            losses = criterion(outputs, targets)
+            loss = losses['total_loss']
+            
+            # Backward
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
                 model.parameters(),
@@ -273,6 +361,13 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
                 f"Loss: {loss.item():.4f} | Avg: {avg_loss:.4f} | LR: {lr:.6f}"
             )
             TRAINING_STATE.status_message = f"Training: Epoch {epoch}, Step {TRAINING_STATE.current_step}"
+            
+            # TensorBoard logging
+            if writer:
+                writer.add_scalar('Loss/train_total', loss.item(), TRAINING_STATE.current_step)
+                writer.add_scalar('Loss/train_mel', losses['mel_loss'].item(), TRAINING_STATE.current_step)
+                writer.add_scalar('Loss/train_duration', losses['duration_loss'].item(), TRAINING_STATE.current_step)
+                writer.add_scalar('Learning_Rate', lr, TRAINING_STATE.current_step)
         
         # Checkpointing
         if TRAINING_STATE.current_step % config['training']['save_interval'] == 0:
@@ -292,19 +387,45 @@ def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch
     return True
 
 
-def validate(model, val_loader, config):
+def validate(model, val_loader, criterion, config):
     """Run validation"""
     model.eval()
     total_loss = 0
+    total_mel_loss = 0
+    total_duration_loss = 0
+    device = next(model.parameters()).device
     
     with torch.no_grad():
         for batch in val_loader:
-            # TODO: Implement validation
-            loss = torch.tensor(1.0)
-            total_loss += loss.item()
+            # Move batch to device
+            text_ids = batch['text_ids'].to(device)
+            text_lengths = batch['text_lengths'].to(device)
+            mel_targets = batch['mel'].to(device)
+            mel_lengths = batch['mel_lengths'].to(device)
+            
+            # Forward pass
+            outputs = model(
+                text_ids=text_ids,
+                text_lengths=text_lengths,
+                mel_targets=mel_targets
+            )
+            
+            # Compute loss
+            targets = {
+                'mel': mel_targets,
+                'mel_lengths': mel_lengths
+            }
+            losses = criterion(outputs, targets)
+            
+            total_loss += losses['total_loss'].item()
+            total_mel_loss += losses['mel_loss'].item()
+            total_duration_loss += losses['duration_loss'].item()
     
     avg_loss = total_loss / len(val_loader)
-    TRAINING_STATE.log(f"Validation loss: {avg_loss:.4f}")
+    avg_mel_loss = total_mel_loss / len(val_loader)
+    avg_duration_loss = total_duration_loss / len(val_loader)
+    
+    TRAINING_STATE.log(f"Validation - Total: {avg_loss:.4f} | Mel: {avg_mel_loss:.4f} | Duration: {avg_duration_loss:.4f}")
     
     if avg_loss < TRAINING_STATE.best_loss:
         TRAINING_STATE.best_loss = avg_loss
@@ -369,6 +490,13 @@ def train(config_path: str, resume_from: Optional[str] = None):
         # Setup optimizer
         optimizer, scheduler = setup_optimizer(model, config)
         
+        # Setup loss function
+        criterion = TTSLoss(
+            mel_loss_weight=1.0,
+            duration_loss_weight=0.1
+        )
+        TRAINING_STATE.log("✓ Loss function initialized")
+        
         # Setup dataloaders
         train_loader, val_loader = setup_dataloaders(config)
         
@@ -413,7 +541,7 @@ def train(config_path: str, resume_from: Optional[str] = None):
             # Train
             continue_training = train_epoch(
                 model, train_loader, optimizer, scheduler,
-                scaler, config, epoch
+                scaler, criterion, writer, config, epoch
             )
             
             if not continue_training:
@@ -421,7 +549,7 @@ def train(config_path: str, resume_from: Optional[str] = None):
             
             # Validate
             if (epoch + 1) % (config['training']['eval_interval'] // len(train_loader)) == 0:
-                val_loss = validate(model, val_loader, config)
+                val_loss = validate(model, val_loader, criterion, config)
                 
                 if writer:
                     writer.add_scalar('Loss/validation', val_loss, TRAINING_STATE.current_step)
