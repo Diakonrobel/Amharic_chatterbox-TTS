@@ -67,7 +67,15 @@ def merge_tokenizers(base_tokenizer_path: str,
     merged_vocab = base_vocab.copy()
     
     # Start indexing Amharic tokens after base tokens
-    next_index = base_vocab_size
+    # Use actual max index from base vocab, not assumed size
+    if base_vocab:
+        max_base_index = max(base_vocab.values())
+        next_index = max_base_index + 1
+        print(f"      Base vocab actual max index: {max_base_index}")
+        print(f"      Starting Amharic tokens from index: {next_index}")
+    else:
+        next_index = 0
+    
     added_count = 0
     
     for token, _ in amharic_vocab.items():
