@@ -139,9 +139,10 @@ class AmharicTTSTrainingApp:
                     print(f"Attempting to load model: {model_file}")
                     
                     # Create model instance
+                    # Use d_model=1024 to match Chatterbox pretrained weights
                     model = SimplifiedT3Model(
                         vocab_size=config['model']['n_vocab'],
-                        d_model=512,
+                        d_model=1024,  # Match Chatterbox multilingual dimension
                         nhead=8,
                         num_encoder_layers=6,
                         dim_feedforward=2048,

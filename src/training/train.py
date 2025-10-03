@@ -233,9 +233,10 @@ def setup_model(config: Dict) -> nn.Module:
     TRAINING_STATE.log("Setting up SimplifiedT3Model...")
     
     # Create T3 model with proper configuration
+    # Use d_model=1024 to match Chatterbox pretrained weights
     model = SimplifiedT3Model(
         vocab_size=config['model']['n_vocab'],
-        d_model=512,  # Model dimension
+        d_model=1024,  # Model dimension (matches Chatterbox multilingual)
         nhead=8,  # Attention heads
         num_encoder_layers=6,  # Transformer layers
         dim_feedforward=2048,
@@ -246,7 +247,7 @@ def setup_model(config: Dict) -> nn.Module:
     
     TRAINING_STATE.log(f"✓ T3 Model created:")
     TRAINING_STATE.log(f"   Vocab size: {config['model']['n_vocab']}")
-    TRAINING_STATE.log(f"   Model dim: 512")
+    TRAINING_STATE.log(f"   Model dim: 1024 (matches Chatterbox)")
     TRAINING_STATE.log(f"   Mel channels: {config['data']['n_mel_channels']}")
     
     # Load pretrained weights (extended embeddings)
