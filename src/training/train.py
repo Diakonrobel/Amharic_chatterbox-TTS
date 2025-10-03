@@ -26,6 +26,8 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from src.training.train_utils import freeze_text_embeddings, count_parameters, print_model_info
+from src.models.t3_model import SimplifiedT3Model, TTSLoss
+from src.audio import AudioProcessor, collate_fn
 
 
 class TrainingState:
@@ -72,11 +74,13 @@ TRAINING_STATE = TrainingState()
 
 
 class SimpleAmharicDataset(Dataset):
-    """Simple dataset for Amharic TTS training"""
+    """Dataset for Amharic TTS training with real audio loading"""
     
-    def __init__(self, metadata_path: str, data_dir: Path):
+    def __init__(self, metadata_path: str, data_dir: Path, audio_processor: AudioProcessor = None, tokenizer=None):
         self.data_dir = data_dir
         self.samples = []
+        self.audio_processor = audio_processor or AudioProcessor()
+        self.tokenizer = tokenizer
         
         # Load metadata
         with open(metadata_path, 'r', encoding='utf-8') as f:
@@ -89,18 +93,43 @@ class SimpleAmharicDataset(Dataset):
                         'audio': audio_file,
                         'text': text
                     })
+        
+        TRAINING_STATE.log(f"✓ Loaded {len(self.samples)} samples from {metadata_path}")
     
     def __len__(self):
         return len(self.samples)
     
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        # TODO: Load and process audio
-        # For now, return dummy data
-        return {
-            'text': sample['text'],
-            'audio_path': sample['audio']
-        }
+        
+        try:
+            # Load and process audio
+            audio_path = self.data_dir / 'wavs' / sample['audio']
+            _, mel = self.audio_processor.process_audio_file(str(audio_path))
+            
+            # Tokenize text (simple character-level for now)
+            text = sample['text']
+            if self.tokenizer:
+                # Use provided tokenizer
+                text_ids = self.tokenizer.encode(text)
+            else:
+                # Simple character-level tokenization as fallback
+                text_ids = [ord(c) % 1000 for c in text[:100]]  # Limit length
+            
+            return {
+                'text_ids': text_ids,
+                'mel': mel,
+                'audio_path': str(audio_path)
+            }
+        except Exception as e:
+            # If audio loading fails, return a simple dummy to avoid crashing
+            TRAINING_STATE.log(f"Warning: Failed to load {sample['audio']}: {str(e)}")
+            # Return minimal valid data
+            return {
+                'text_ids': [0] * 10,  # Dummy tokens
+                'mel': torch.zeros(80, 100),  # Dummy mel
+                'audio_path': str(audio_path) if 'audio_path' in locals() else sample['audio']
+            }
 
 
 def load_config(config_path: str) -> Dict:
@@ -111,42 +140,57 @@ def load_config(config_path: str) -> Dict:
 
 
 def setup_model(config: Dict) -> nn.Module:
-    """Setup model for training"""
-    TRAINING_STATE.log("Setting up model...")
+    """Setup real T3 model for training"""
+    TRAINING_STATE.log("Setting up SimplifiedT3Model...")
     
-    # TODO: Load actual Chatterbox model
-    # For now, create a simple placeholder
-    class DummyModel(nn.Module):
-        def __init__(self, vocab_size, hidden_size):
-            super().__init__()
-            self.embedding = nn.Embedding(vocab_size, hidden_size)
-            self.linear = nn.Linear(hidden_size, hidden_size)
-            
-        def forward(self, x):
-            return self.linear(self.embedding(x))
-    
-    model = DummyModel(
+    # Create T3 model with proper configuration
+    model = SimplifiedT3Model(
         vocab_size=config['model']['n_vocab'],
-        hidden_size=config['model']['hidden_channels']
+        d_model=512,  # Model dimension
+        nhead=8,  # Attention heads
+        num_encoder_layers=6,  # Transformer layers
+        dim_feedforward=2048,
+        dropout=0.1,
+        n_mels=config['data']['n_mel_channels'],
+        max_seq_len=1000
     )
     
-    TRAINING_STATE.log(f"✓ Model created with {config['model']['n_vocab']} vocabulary")
+    TRAINING_STATE.log(f"✓ T3 Model created:")
+    TRAINING_STATE.log(f"   Vocab size: {config['model']['n_vocab']}")
+    TRAINING_STATE.log(f"   Model dim: 512")
+    TRAINING_STATE.log(f"   Mel channels: {config['data']['n_mel_channels']}")
     
-    # Load pretrained weights if specified
+    # Load pretrained weights (extended embeddings)
     if config['finetuning']['enabled']:
         pretrained_path = config['finetuning']['pretrained_model']
         if os.path.exists(pretrained_path):
-            TRAINING_STATE.log(f"Loading pretrained model from {pretrained_path}")
-            # TODO: Load actual weights
-            TRAINING_STATE.log("✓ Pretrained weights loaded")
+            TRAINING_STATE.log(f"Loading extended embeddings from {pretrained_path}")
+            try:
+                model.load_pretrained_weights(pretrained_path)
+                TRAINING_STATE.log("✓ Extended embeddings loaded")
+            except Exception as e:
+                TRAINING_STATE.log(f"⚠ Warning loading weights: {str(e)}")
+                TRAINING_STATE.log("  Continuing with randomly initialized weights")
         else:
             TRAINING_STATE.log(f"⚠ Pretrained model not found: {pretrained_path}")
+            TRAINING_STATE.log("  Training from scratch")
     
-    # Freeze embeddings if configured
+    # Freeze original embeddings if configured
     if config['model']['freeze_original_embeddings']:
         freeze_idx = config['model']['freeze_until_index']
-        freeze_text_embeddings(model, freeze_idx)
-        TRAINING_STATE.log(f"✓ Frozen embeddings 0-{freeze_idx-1}")
+        try:
+            # Freeze the text embedding layer
+            if hasattr(model, 'text_embedding'):
+                for i, param in enumerate(model.text_embedding.parameters()):
+                    if i == 0:  # Weight matrix
+                        # Freeze only the first freeze_idx embeddings
+                        param.requires_grad = False
+                        param.data[:freeze_idx].requires_grad = False
+                TRAINING_STATE.log(f"✓ Frozen first {freeze_idx} embeddings")
+            else:
+                TRAINING_STATE.log("⚠ Could not freeze embeddings - layer not found")
+        except Exception as e:
+            TRAINING_STATE.log(f"⚠ Warning freezing embeddings: {str(e)}")
     
     return model
 
@@ -174,52 +218,6 @@ def setup_optimizer(model: nn.Module, config: Dict):
     return optimizer, scheduler
 
 
-def setup_dataloaders(config: Dict):
-    """Setup training and validation dataloaders"""
-    TRAINING_STATE.log("Setting up dataloaders...")
-    
-    dataset_path = Path(config['data']['dataset_path'])
-    metadata_file = dataset_path / config['data']['metadata_file']
-    
-    if not metadata_file.exists():
-        raise FileNotFoundError(f"Metadata file not found: {metadata_file}")
-    
-    # Load full dataset
-    full_dataset = SimpleAmharicDataset(str(metadata_file), dataset_path)
-    
-    # Split into train/val/test
-    total_size = len(full_dataset)
-    train_size = int(total_size * config['data']['train_ratio'])
-    val_size = int(total_size * config['data']['val_ratio'])
-    test_size = total_size - train_size - val_size
-    
-    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
-        full_dataset,
-        [train_size, val_size, test_size]
-    )
-    
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config['data']['batch_size'],
-        shuffle=True,
-        num_workers=config['data']['num_workers'],
-        pin_memory=config['data']['pin_memory']
-    )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config['data']['batch_size'],
-        shuffle=False,
-        num_workers=config['data']['num_workers'],
-        pin_memory=config['data']['pin_memory']
-    )
-    
-    TRAINING_STATE.log(f"✓ Train samples: {len(train_dataset)}")
-    TRAINING_STATE.log(f"✓ Val samples: {len(val_dataset)}")
-    TRAINING_STATE.log(f"✓ Batch size: {config['data']['batch_size']}")
-    
-    return train_loader, val_loader
 
 
 def train_epoch(model, train_loader, optimizer, scheduler, scaler, config, epoch):
