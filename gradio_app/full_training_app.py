@@ -440,10 +440,39 @@ Then try again.
 ```
 """
             else:
-                return f"❌ **Extension Failed**\n\n```\n{result.stderr}\n```"
+                error_msg = result.stderr if result.stderr else result.stdout
+                return f"""
+❌ **Extension Failed**
+
+**Error Details:**
+```
+{error_msg}
+```
+
+**Troubleshooting:**
+1. First, inspect the model to find the correct embedding keys:
+   ```bash
+   python scripts/inspect_model_keys.py --model {model_path}
+   ```
+
+2. Share the output so we can update the extension script to use the correct keys.
+
+3. Make sure the model file exists and is accessible.
+"""
                 
         except Exception as e:
-            return f"❌ **Extension Failed**\n\nError: {str(e)}"
+            return f"""
+❌ **Extension Failed**
+
+**Exception:** {str(e)}
+
+**Troubleshooting:**
+1. Make sure the model file exists at: `{model_path}`
+2. Run the inspection script to check model structure:
+   ```bash
+   python scripts/inspect_model_keys.py --model {model_path}
+   ```
+"""
     
     def get_training_status(self) -> str:
         """Get current training status"""
