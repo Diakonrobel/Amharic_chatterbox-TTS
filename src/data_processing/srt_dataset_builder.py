@@ -33,13 +33,14 @@ from tqdm import tqdm
 import shutil
 import hashlib
 
-# Import advanced audio splitter
+# Import advanced audio splitter (optional enhancement)
 try:
     from advanced_audio_splitter import AmharicOptimizedSplitter, AdvancedAudioSplitter
     ADVANCED_SPLITTER_AVAILABLE = True
 except ImportError:
     ADVANCED_SPLITTER_AVAILABLE = False
-    print("Warning: Advanced audio splitter not available. Using basic extraction.")
+    # Using basic extraction (works perfectly fine)
+    pass
 
 
 @dataclass
