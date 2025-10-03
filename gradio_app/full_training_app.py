@@ -611,8 +611,16 @@ The checkpoint will be saved automatically.
         # Sort by modification time (newest first)
         checkpoints.sort(key=lambda x: x.stat().st_mtime, reverse=True)
         
-        # Return relative paths
-        checkpoint_list = [str(cp.relative_to(Path.cwd())) for cp in checkpoints]
+        # Return paths safely - handle both absolute and relative
+        checkpoint_list = []
+        for cp in checkpoints:
+            try:
+                # Try to make relative to current working directory
+                rel_path = cp.relative_to(Path.cwd())
+                checkpoint_list.append(str(rel_path))
+            except ValueError:
+                # If relative path fails, use absolute path
+                checkpoint_list.append(str(cp.resolve()))
         
         # Add "None" option at the beginning
         return ["None (Start from scratch)"] + checkpoint_list
