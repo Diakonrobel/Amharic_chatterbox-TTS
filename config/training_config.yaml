@@ -12,14 +12,14 @@ model:
   kernel_size: 3
   p_dropout: 0.1
   
-  # Vocabulary settings (update after tokenizer merge)
-  original_vocab_size: 704  # Base Chatterbox English vocabulary
-  n_vocab: 2000  # Extended vocabulary with Amharic tokens
+  # Vocabulary settings (updated for Chatterbox multilingual + Amharic)
+  original_vocab_size: 2454  # Base Chatterbox multilingual vocabulary
+  n_vocab: 3000  # Extended vocabulary with Amharic tokens
   use_phonemes: true
   
-  # Freeze original embeddings to preserve English (from video experience)
+  # Freeze original embeddings to preserve multilingual capabilities
   freeze_original_embeddings: true
-  freeze_until_index: 704  # Freeze first 704 embeddings (English tokens)
+  freeze_until_index: 2454  # Freeze first 2454 embeddings (Chatterbox multilingual tokens)
 
 # Dataset configuration
 data:
@@ -82,7 +82,7 @@ training:
 # Fine-tuning from pretrained model
 finetuning:
   enabled: true
-  pretrained_model: "models/pretrained/chatterbox_base.pt"
+  pretrained_model: "models/pretrained/chatterbox_extended.pt"  # Updated to use extended model
   
   # What to freeze (based on video experience)
   freeze_encoder: false
