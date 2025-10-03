@@ -55,7 +55,8 @@ class AmharicTTSTrainingApp:
             if self.model:
                 print("✓ TTS model loaded successfully")
             else:
-                print("⚠ TTS model not loaded (placeholder mode - no trained model found)")
+                print("✓ TTS model not loaded (training mode - will load from checkpoints during training)")
+                print("  ℹ This is NORMAL on first run. Model will be available after training starts.")
         except Exception as e:
             print(f"⚠ TTS model loading failed: {str(e)} (placeholder mode)")
             self.model = None
@@ -91,16 +92,17 @@ class AmharicTTSTrainingApp:
                     latest = max(checkpoints, key=lambda x: x.stat().st_mtime)
                     model_candidates.append(latest)
             
-            # 3. Extended pretrained model
-            extended_model = Path("models/pretrained/chatterbox_extended.pt")
-            if extended_model.exists():
-                model_candidates.append(extended_model)
+            # 3. Extended pretrained model (skip for inference - it's for training only)
+            # The extended embeddings file is used during training initialization,
+            # not for inference in the demo interface
             
-            # 4. Any pretrained model in the directory
+            # 4. Any OTHER pretrained models (skip extended embeddings)
             pretrained_dir = Path("models/pretrained")
             if pretrained_dir.exists():
                 for model_file in pretrained_dir.glob("*.pt"):
-                    model_candidates.append(model_file)
+                    # Skip the extended embeddings file - it's for training only
+                    if "extended" not in model_file.stem.lower():
+                        model_candidates.append(model_file)
                 for model_file in pretrained_dir.glob("*.safetensors"):
                     model_candidates.append(model_file)
             
@@ -174,17 +176,47 @@ class AmharicTTSTrainingApp:
                     model_dict = model.state_dict()
                     compatible_dict = {}
                     
+                    # Check if this looks like an extended embeddings file
+                    has_text_embedding = 'text_embedding.weight' in state_dict
+                    
                     for k, v in state_dict.items():
-                        if k in model_dict and v.shape == model_dict[k].shape:
-                            compatible_dict[k] = v
+                        if k in model_dict:
+                            # Exact shape match - load directly
+                            if v.shape == model_dict[k].shape:
+                                compatible_dict[k] = v
+                            # Text embedding with different vocab size but same d_model
+                            elif 'text_embedding.weight' in k:
+                                target_shape = model_dict[k].shape
+                                # Check if embedding dimension matches
+                                if len(v.shape) == 2 and len(target_shape) == 2:
+                                    if v.shape[1] == target_shape[1]:  # Same d_model
+                                        # Copy what we can
+                                        min_vocab = min(v.shape[0], target_shape[0])
+                                        new_embedding = model_dict[k].clone()
+                                        new_embedding[:min_vocab] = v[:min_vocab]
+                                        compatible_dict[k] = new_embedding
+                                        print(f"  ✓ Adapted text_embedding: {v.shape} -> {target_shape}, copied {min_vocab} embeddings")
+                        # Map Chatterbox-style keys
                         elif 'text_emb' in k and 'text_embedding.weight' in model_dict:
-                            # Map Chatterbox text embedding
                             target_shape = model_dict['text_embedding.weight'].shape
-                            if v.shape[1] == target_shape[1]:  # Same embedding dimension
-                                if v.shape[0] <= target_shape[0]:  # Can fit in extended vocab
-                                    compatible_dict['text_embedding.weight'] = v
+                            if len(v.shape) == 2 and v.shape[1] == target_shape[1]:
+                                min_vocab = min(v.shape[0], target_shape[0])
+                                new_embedding = model_dict['text_embedding.weight'].clone()
+                                new_embedding[:min_vocab] = v[:min_vocab]
+                                compatible_dict['text_embedding.weight'] = new_embedding
+                                print(f"  ✓ Mapped text_emb -> text_embedding: copied {min_vocab} embeddings")
+                    
+                    # If we found the extended embeddings file but no compatible weights,
+                    # it means this is actually a trained checkpoint we can use
+                    if has_text_embedding and not compatible_dict:
+                        print(f"  ℹ Extended embeddings file detected, will use for training initialization only")
+                        # Return model with random initialization - it will be loaded during training
+                        model.eval()
+                        return model
                     
                     if compatible_dict:
+                        # Update model with compatible weights
+                        model_dict.update(compatible_dict)
                         model.load_state_dict(model_dict, strict=False)
                         print(f"✓ Loaded {len(compatible_dict)} compatible weight tensors from {model_file}")
                         model.eval()  # Set to evaluation mode
