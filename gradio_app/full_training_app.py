@@ -271,15 +271,19 @@ To generate actual audio, train the model first.
         try:
             output_path = Path("models") / "tokenizer" / f"{output_name}_merged.json"
             
+            # Get project root directory
+            project_root = Path(__file__).parent.parent
+            script_path = project_root / "scripts" / "merge_tokenizers.py"
+            
             cmd = [
-                "python", "scripts/merge_tokenizers.py",
+                "python", str(script_path),
                 "--base", base_path,
                 "--amharic", amharic_path,
                 "--output", str(output_path),
                 "--validate"
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(project_root))
             
             if result.returncode == 0:
                 return f"""
@@ -407,15 +411,19 @@ Then try again.
             output_path = Path("models") / "pretrained" / f"{output_name}_extended.pt"
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
+            # Get project root directory
+            project_root = Path(__file__).parent.parent
+            script_path = project_root / "scripts" / "extend_model_embeddings.py"
+            
             cmd = [
-                "python", "scripts/extend_model_embeddings.py",
+                "python", str(script_path),
                 "--model", model_path,
                 "--output", str(output_path),
                 "--original-size", str(original_size),
                 "--new-size", str(new_size)
             ]
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(project_root))
             
             if result.returncode == 0:
                 return f"""
