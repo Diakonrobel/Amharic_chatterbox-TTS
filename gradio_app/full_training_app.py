@@ -618,6 +618,14 @@ The checkpoint will be saved automatically.
                     gr.Markdown("""
                     ### 🔤 Train Amharic Tokenizer
                     Train a custom SentencePiece tokenizer on your Amharic dataset.
+                    
+                    **Vocabulary Size Guidelines:**
+                    - **300-500**: Small datasets (<1 hour) - Basic coverage
+                    - **500-1000**: Medium datasets (1-5 hours) - **Recommended for most**
+                    - **1000-2000**: Large datasets (5-10 hours) - Good coverage
+                    - **2000-5000**: Very large datasets (>10 hours) - Maximum quality
+                    
+                    💡 Larger vocab = better quality but slower training. Start with 500-1000.
                     """)
                     
                     with gr.Row():
@@ -630,11 +638,11 @@ The checkpoint will be saved automatically.
                             )
                             vocab_size_slider = gr.Slider(
                                 minimum=100,
-                                maximum=2000,
+                                maximum=10000,
                                 value=500,
                                 step=100,
                                 label="Vocabulary Size",
-                                info="Number of Amharic tokens to create"
+                                info="Recommended: 500 (<5h), 1000 (5-10h), 2000+ (>10h data)"
                             )
                             tokenizer_name_input = gr.Textbox(
                                 label="Output Name",
