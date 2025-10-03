@@ -277,6 +277,13 @@ def train_amharic_tokenizer(data_file: str, output_dir: str, vocab_size: int = 5
         raise ValueError("All text entries are empty!")
     
     print(f"Training tokenizer on {len(texts)} samples...")
+    
+    # Warn if dataset is too small
+    if len(texts) < 1000:
+        print(f"\n⚠️  WARNING: Dataset is small ({len(texts)} samples)")
+        print(f"   Recommended: >1000 samples for good tokenizer quality")
+        print(f"   Current quality may be suboptimal.\n")
+    
     print(f"Sample texts:")
     for i, text in enumerate(texts[:3]):
         print(f"  {i+1}. {text[:100]}...")
@@ -290,7 +297,7 @@ def train_amharic_tokenizer(data_file: str, output_dir: str, vocab_size: int = 5
     vocab = tokenizer.build_vocab_from_texts(texts)
     print(f"✓ Vocabulary size: {len(vocab)}")
     
-    # Train SentencePiece
+    # Train SentencePiece (on plain text, not phonemes)
     print("Training SentencePiece model...")
     tokenizer.train_sentencepiece(
         texts,
@@ -301,16 +308,27 @@ def train_amharic_tokenizer(data_file: str, output_dir: str, vocab_size: int = 5
     # Save tokenizer
     tokenizer.save(output_dir)
     
-    # Test
+    # Test encoding/decoding
     test_text = "ሰላም ለዓለም"
-    encoded = tokenizer.encode(test_text, use_phonemes=True)
-    decoded = tokenizer.decode(encoded)
     
     print(f"\n{'='*50}")
-    print("Test:")
-    print(f"  Original: {test_text}")
-    print(f"  Encoded:  {encoded}")
-    print(f"  Decoded:  {decoded}")
+    print("Testing tokenizer...")
+    print(f"\n1. Direct encoding (graphemes):")
+    encoded_direct = tokenizer.encode(test_text, use_phonemes=False)
+    decoded_direct = tokenizer.decode(encoded_direct)
+    print(f"   Original:  {test_text}")
+    print(f"   Encoded:   {encoded_direct[:20]}{'...' if len(encoded_direct) > 20 else ''}")
+    print(f"   Decoded:   {decoded_direct}")
+    print(f"   Match: {'✓' if test_text in decoded_direct else '✗'}")
+    
+    print(f"\n2. With phoneme conversion:")
+    phoneme_text = g2p.grapheme_to_phoneme(test_text)
+    print(f"   Phonemes:  {phoneme_text}")
+    encoded_phoneme = tokenizer.encode(test_text, use_phonemes=True)
+    decoded_phoneme = tokenizer.decode(encoded_phoneme)
+    print(f"   Encoded:   {encoded_phoneme[:20]}{'...' if len(encoded_phoneme) > 20 else ''}")
+    print(f"   Decoded:   {decoded_phoneme}")
+    
     print(f"{'='*50}")
     
     return tokenizer
