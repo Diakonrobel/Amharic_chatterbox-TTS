@@ -112,9 +112,9 @@ class SimpleAmharicDataset(Dataset):
             # Tokenize text with proper Amharic support
             text = sample['text']
             if self.tokenizer:
-                # Use provided tokenizer with phoneme conversion
+                # Use grapheme (character) encoding - works better for Amharic
                 try:
-                    text_ids = self.tokenizer.encode(text, use_phonemes=True)
+                    text_ids = self.tokenizer.encode(text, use_phonemes=False)
                     # Validate that we didn't get too many UNK tokens
                     unk_id = getattr(self.tokenizer, 'vocab', {}).get('<UNK>', 1)
                     unk_ratio = text_ids.count(unk_id) / len(text_ids) if text_ids else 1.0
@@ -201,22 +201,29 @@ def setup_dataloaders(config: Dict):
     
     # Try to load tokenizer if available
     tokenizer = None
+    # Prioritize amharic_tokenizer subdirectory (where trained tokenizer is)
     tokenizer_paths = [
-        "models/tokenizer",
-        "models/tokenizer/amharic_tokenizer"
+        "models/tokenizer/amharic_tokenizer",  # Trained tokenizer location
+        "models/tokenizer"  # Fallback
     ]
     
     for tokenizer_path in tokenizer_paths:
-        if Path(tokenizer_path).exists():
+        tokenizer_dir = Path(tokenizer_path)
+        # Check if tokenizer files actually exist
+        if tokenizer_dir.exists() and (tokenizer_dir / "sentencepiece.model").exists():
             try:
                 from src.tokenizer.amharic_tokenizer import AmharicTokenizer
                 from src.g2p.amharic_g2p import AmharicG2P
                 g2p = AmharicG2P()
-                tokenizer = AmharicTokenizer.load(tokenizer_path, g2p=g2p)
+                tokenizer = AmharicTokenizer.load(str(tokenizer_dir), g2p=g2p)
                 TRAINING_STATE.log(f"✓ Loaded tokenizer from {tokenizer_path}")
+                TRAINING_STATE.log(f"   Tokenizer vocab size: {tokenizer.get_vocab_size()}")
                 break
             except Exception as e:
                 TRAINING_STATE.log(f"⚠ Failed to load tokenizer from {tokenizer_path}: {str(e)}")
+    
+    if tokenizer is None:
+        TRAINING_STATE.log("⚠ WARNING: No tokenizer loaded! Will use fallback character encoding.")
     
     # Create datasets - handle multiple config formats
     if 'data_dir' in config.get('paths', {}):
