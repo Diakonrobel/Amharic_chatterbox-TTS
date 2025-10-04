@@ -1,0 +1,146 @@
+# Amharic TTS Training Configuration - OPTIMIZED FOR SMALL DATASET
+# This config is tuned for datasets with <1000 samples
+
+model:
+  name: "chatterbox_amharic"
+  architecture: "chatterbox"
+  
+  # Model dimensions
+  hidden_channels: 192
+  filter_channels: 768
+  n_heads: 2
+  n_layers: 6
+  kernel_size: 3
+  p_dropout: 0.2  # Increased from 0.1 to reduce overfitting
+  
+  # Vocabulary settings (updated for Chatterbox multilingual + Amharic)
+  original_vocab_size: 2454  # Base Chatterbox multilingual vocabulary
+  n_vocab: 2535  # Merged vocabulary (Chatterbox 2454 + Amharic 81 tokens)
+  use_phonemes: true
+  
+  # Freeze original embeddings to preserve multilingual capabilities
+  freeze_original_embeddings: true
+  freeze_until_index: 2454  # Freeze first 2454 embeddings (Chatterbox multilingual tokens)
+
+# Dataset configuration
+data:
+  dataset_path: "data/processed/ljspeech_format"
+  metadata_file: "metadata.csv"
+  
+  # Audio settings
+  sampling_rate: 22050
+  filter_length: 1024
+  hop_length: 256
+  win_length: 1024
+  n_mel_channels: 80
+  mel_fmin: 0.0
+  mel_fmax: 8000.0
+  
+  # Data splits
+  train_ratio: 0.85
+  val_ratio: 0.10
+  test_ratio: 0.05
+  
+  # Data loading - OPTIMIZED
+  batch_size: 8  # Reduced from 16 for more stable gradients
+  num_workers: 2
+  pin_memory: true
+
+# Training hyperparameters - OPTIMIZED FOR STABILITY
+training:
+  # Optimization
+  optimizer: "AdamW"
+  learning_rate: 5.0e-5  # Reduced from 2e-4 (4x lower) for stability
+  weight_decay: 0.01
+  betas: [0.9, 0.999]  # More conservative (standard Adam values)
+  eps: 1.0e-8
+  
+  # Learning rate schedule - WARM START
+  lr_scheduler: "ExponentialLR"
+  lr_decay: 0.99995  # Slower decay
+  warmup_steps: 1000  # Reduced from 4000 for small dataset
+  
+  # Training duration
+  max_epochs: 200  # Reduced from 1000 - small dataset will overfit
+  max_steps: 50000  # Reduced from 500000
+  
+  # Checkpointing - MORE FREQUENT for small dataset
+  save_interval: 500  # Save every 500 steps (was 5000)
+  eval_interval: 100  # Evaluate every 100 steps (was 1000)
+  log_interval: 10   # Log every 10 steps (was 100)
+  
+  # Gradient - STRICTER CLIPPING
+  grad_clip_thresh: 0.5  # Reduced from 1.0 for stability
+  grad_accumulation_steps: 4  # Accumulate 4 batches = effective batch size 32
+  
+  # Mixed precision
+  use_amp: true
+  
+  # Multi-GPU
+  use_ddp: false
+  gpu_ids: [0]
+  
+  # Early stopping - PREVENT OVERFITTING
+  early_stopping: true
+  patience: 20  # Stop if no improvement for 20 eval intervals
+
+# Fine-tuning from pretrained model
+finetuning:
+  enabled: true
+  pretrained_model: "models/pretrained/chatterbox_extended.pt"
+  
+  # What to freeze - MORE AGGRESSIVE for small dataset
+  freeze_encoder: false
+  freeze_decoder: false
+  freeze_vocoder: true  # Keep vocoder frozen
+
+# Logging
+logging:
+  use_wandb: false
+  wandb_project: "amharic-tts"
+  wandb_entity: null
+  
+  use_tensorboard: true
+  log_dir: "logs"
+  
+  # What to log
+  log_audio: true
+  log_spectrograms: true
+  log_alignments: true
+
+# Validation
+validation:
+  n_samples: 5
+  sample_texts:
+    - "ሰላም ለዓለም"
+    - "አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት"
+    - "እንኳን ደህና መጡ"
+    - "አማርኛ በጌዕዝ ፊደል ይጻፋል"
+    - "ኢትዮጵያ በምስራቅ አፍሪካ የምትገኝ ሀገር ናት"
+
+# Paths
+paths:
+  data_dir: "data/srt_datasets/merged_3"
+  tokenizer: "models/tokenizer/Am_tokenizer_merged.json"
+  extended_model: "models/pretrained/chatterbox_extended.pt"
+  checkpoints: "models/checkpoints"
+
+# OPTIMIZATION NOTES:
+# 
+# Key changes for small dataset (525 samples):
+# 1. Learning rate: 2e-4 → 5e-5 (4x reduction for stability)
+# 2. Batch size: 16 → 8 (smaller, more stable gradients)
+# 3. Gradient accumulation: 1 → 4 (effective batch size = 32)
+# 4. Gradient clipping: 1.0 → 0.5 (prevent exploding gradients)
+# 5. Dropout: 0.1 → 0.2 (reduce overfitting)
+# 6. Max epochs: 1000 → 200 (prevent overfitting)
+# 7. Save interval: 5000 → 500 (more frequent checkpoints)
+# 8. Eval interval: 1000 → 100 (monitor progress closely)
+# 9. Beta values: [0.8, 0.99] → [0.9, 0.999] (more conservative)
+# 10. Added early stopping with patience=20
+#
+# Expected behavior:
+# - Loss should decrease smoothly: 13 → 10 → 7 → 5 → 3 → 2 → 1
+# - Less fluctuation between epochs
+# - Should converge to ~1-2 loss in 50-100 epochs
+# - Will overfit eventually due to small dataset (this is expected)
