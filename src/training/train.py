@@ -289,12 +289,27 @@ def setup_dataloaders(config: Dict, tokenizer):
         data_dir = Path("data/srt_datasets/my_dataset")
         TRAINING_STATE.log(f"⚠ No data_dir in config, using default: {data_dir}")
     
-    train_metadata = data_dir / 'metadata.csv'
-    val_metadata = data_dir / 'metadata_val.csv'  # Or use a split
+    # Try to find split datasets first
+    train_metadata = data_dir / 'metadata_train.csv'
+    val_metadata = data_dir / 'metadata_val.csv'
     
-    # Check if validation metadata exists, otherwise use train for both
+    # Fallback to original metadata.csv if splits don't exist
+    if not train_metadata.exists():
+        TRAINING_STATE.log("⚠ No metadata_train.csv found, using metadata.csv")
+        train_metadata = data_dir / 'metadata.csv'
+    
+    # Check if validation metadata exists
     if not val_metadata.exists():
-        TRAINING_STATE.log("⚠ No separate validation metadata, using training data")
+        TRAINING_STATE.log("⚠️ WARNING: No validation set found!")
+        TRAINING_STATE.log("⚠️ Training and validation are using the SAME data")
+        TRAINING_STATE.log("⚠️ This means:")
+        TRAINING_STATE.log("   - Early stopping won't work correctly")
+        TRAINING_STATE.log("   - Model will appear better than it really is")
+        TRAINING_STATE.log("   - Can't detect true overfitting")
+        TRAINING_STATE.log("")
+        TRAINING_STATE.log("ℹ️ To fix this, run:")
+        TRAINING_STATE.log(f"   python scripts/split_dataset.py --dataset {data_dir} --backup")
+        TRAINING_STATE.log("")
         val_metadata = train_metadata
     
     train_dataset = SimpleAmharicDataset(
