@@ -201,26 +201,38 @@ def setup_dataloaders(config: Dict):
     
     # Try to load tokenizer if available
     tokenizer = None
-    # Prioritize amharic_tokenizer subdirectory (where trained tokenizer is)
-    tokenizer_paths = [
-        "models/tokenizer/amharic_tokenizer",  # Trained tokenizer location
-        "models/tokenizer"  # Fallback
-    ]
     
-    for tokenizer_path in tokenizer_paths:
-        tokenizer_dir = Path(tokenizer_path)
-        # Check if tokenizer files actually exist
-        if tokenizer_dir.exists() and (tokenizer_dir / "sentencepiece.model").exists():
-            try:
-                from src.tokenizer.amharic_tokenizer import AmharicTokenizer
-                from src.g2p.amharic_g2p import AmharicG2P
-                g2p = AmharicG2P()
-                tokenizer = AmharicTokenizer.load(str(tokenizer_dir), g2p=g2p)
-                TRAINING_STATE.log(f"✓ Loaded tokenizer from {tokenizer_path}")
-                TRAINING_STATE.log(f"   Tokenizer vocab size: {tokenizer.get_vocab_size()}")
-                break
-            except Exception as e:
-                TRAINING_STATE.log(f"⚠ Failed to load tokenizer from {tokenizer_path}: {str(e)}")
+    # Priority 1: Try merged tokenizer (Chatterbox + Amharic)
+    merged_tokenizer_path = Path("models/tokenizer/Am_tokenizer_merged.json")
+    if merged_tokenizer_path.exists():
+        try:
+            from src.tokenizer.merged_tokenizer import MergedTokenizer
+            tokenizer = MergedTokenizer(str(merged_tokenizer_path))
+            TRAINING_STATE.log(f"✓ Loaded MERGED tokenizer from {merged_tokenizer_path}")
+            TRAINING_STATE.log(f"   Vocab size: {tokenizer.get_vocab_size()} (Chatterbox 23 langs + Amharic)")
+        except Exception as e:
+            TRAINING_STATE.log(f"⚠ Failed to load merged tokenizer: {str(e)}")
+    
+    # Priority 2: Try amharic-only tokenizer as fallback
+    if tokenizer is None:
+        tokenizer_paths = [
+            "models/tokenizer/amharic_tokenizer",
+            "models/tokenizer"
+        ]
+        
+        for tokenizer_path in tokenizer_paths:
+            tokenizer_dir = Path(tokenizer_path)
+            if tokenizer_dir.exists() and (tokenizer_dir / "sentencepiece.model").exists():
+                try:
+                    from src.tokenizer.amharic_tokenizer import AmharicTokenizer
+                    from src.g2p.amharic_g2p import AmharicG2P
+                    g2p = AmharicG2P()
+                    tokenizer = AmharicTokenizer.load(str(tokenizer_dir), g2p=g2p)
+                    TRAINING_STATE.log(f"✓ Loaded Amharic-only tokenizer from {tokenizer_path}")
+                    TRAINING_STATE.log(f"   Vocab size: {tokenizer.get_vocab_size()}")
+                    break
+                except Exception as e:
+                    TRAINING_STATE.log(f"⚠ Failed to load from {tokenizer_path}: {str(e)}")
     
     if tokenizer is None:
         TRAINING_STATE.log("⚠ WARNING: No tokenizer loaded! Will use fallback character encoding.")
