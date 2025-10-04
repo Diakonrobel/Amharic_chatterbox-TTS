@@ -11,7 +11,7 @@ import argparse
 import time
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import threading
 
 import torch
