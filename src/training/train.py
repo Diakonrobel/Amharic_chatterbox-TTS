@@ -104,7 +104,9 @@ class SimpleAmharicDataset(Dataset):
         
         try:
             # Load and process audio
-            audio_path = self.data_dir / 'wavs' / sample['audio']
+            # Append .wav extension if not already present
+            audio_filename = sample['audio'] if sample['audio'].endswith('.wav') else f"{sample['audio']}.wav"
+            audio_path = self.data_dir / 'wavs' / audio_filename
             _, mel = self.audio_processor.process_audio_file(str(audio_path))
             
             # Tokenize text (simple character-level for now)
