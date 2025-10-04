@@ -174,6 +174,37 @@ class AudioProcessor:
             audio = np.pad(audio, (0, target_length - len(audio)), mode='constant')
         
         return audio
+    
+    def mel_to_audio(self, mel: np.ndarray, n_iter: int = 32) -> np.ndarray:
+        """
+        Convert mel-spectrogram to audio using Griffin-Lim algorithm
+        
+        Args:
+            mel: Mel-spectrogram (n_mels, time)
+            n_iter: Number of Griffin-Lim iterations
+            
+        Returns:
+            Audio waveform as numpy array
+        """
+        # Convert from log scale
+        mel = np.exp(mel)
+        
+        # Invert mel filterbank to get magnitude spectrogram
+        mel_basis_inv = np.linalg.pinv(self.mel_basis)
+        magnitude = np.dot(mel_basis_inv, mel)
+        
+        # Use Griffin-Lim to reconstruct phase and audio
+        audio = librosa.griffinlim(
+            magnitude,
+            n_iter=n_iter,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window='hann',
+            center=True,
+            length=None
+        )
+        
+        return audio
 
 
 def collate_fn(batch):
