@@ -150,8 +150,12 @@ class SimplifiedT3Model(nn.Module):
             # Expand encoder outputs to match mel length (simple upsampling)
             encoder_expanded = self._length_regulate(encoder_out, durations, target_len)
         else:
-            # Inference: use predicted durations
-            encoder_expanded = self._length_regulate(encoder_out, durations)
+            # Inference: use predicted durations with scaling for better quality
+            # Scale durations to ensure reasonable speech length
+            # Typical: 10-30 mel frames per token for natural speech
+            durations_scaled = durations * 15.0  # Scale factor for reasonable duration
+            durations_scaled = torch.clamp(durations_scaled, min=8.0, max=40.0)  # Clamp to reasonable range
+            encoder_expanded = self._length_regulate(encoder_out, durations_scaled)
         
         # Decode to mel-spectrogram
         mel_outputs = self.mel_decoder(encoder_expanded)  # [batch, time, n_mels]
@@ -188,7 +192,7 @@ class SimplifiedT3Model(nn.Module):
         
         # Round durations to integers
         durations_int = torch.round(durations).long()
-        durations_int = torch.clamp(durations_int, min=1)  # At least 1 frame per token
+        durations_int = torch.clamp(durations_int, min=5)  # At least 5 frames per token for natural speech
         
         if target_len is None:
             target_len = durations_int.sum(dim=1).max().item()
