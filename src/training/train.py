@@ -270,6 +270,132 @@ def detect_tokenizer(config: Dict):
     return None, 1000  # Fallback vocab size for character-based encoding
 
 
+def validate_dataset_splits(config: Dict) -> dict:
+    """
+    Comprehensive pre-training validation of dataset splits
+    Returns validation results with detailed diagnostics
+    """
+    from pathlib import Path
+    
+    # Get data directory
+    if 'data_dir' in config.get('paths', {}):
+        data_dir = Path(config['paths']['data_dir'])
+    elif 'dataset_path' in config.get('data', {}):
+        data_dir = Path(config['data']['dataset_path'])
+    else:
+        data_dir = Path("data/srt_datasets/my_dataset")
+    
+    validation_results = {
+        'passed': True,
+        'warnings': [],
+        'errors': [],
+        'info': {}
+    }
+    
+    # Check if dataset directory exists
+    if not data_dir.exists():
+        validation_results['passed'] = False
+        validation_results['errors'].append(f"Dataset directory not found: {data_dir}")
+        return validation_results
+    
+    validation_results['info']['data_dir'] = str(data_dir)
+    
+    # Check for split files
+    train_metadata = data_dir / 'metadata_train.csv'
+    val_metadata = data_dir / 'metadata_val.csv'
+    test_metadata = data_dir / 'metadata_test.csv'
+    original_metadata = data_dir / 'metadata.csv'
+    
+    has_splits = train_metadata.exists() and val_metadata.exists()
+    has_original = original_metadata.exists()
+    
+    # Validate split files
+    if has_splits:
+        # Load and count samples
+        try:
+            with open(train_metadata, 'r', encoding='utf-8') as f:
+                train_samples = [line for line in f if line.strip()]
+            with open(val_metadata, 'r', encoding='utf-8') as f:
+                val_samples = [line for line in f if line.strip()]
+            
+            train_count = len(train_samples)
+            val_count = len(val_samples)
+            
+            validation_results['info']['train_samples'] = train_count
+            validation_results['info']['val_samples'] = val_count
+            validation_results['info']['has_proper_splits'] = True
+            
+            # Check for test set
+            if test_metadata.exists():
+                with open(test_metadata, 'r', encoding='utf-8') as f:
+                    test_samples = [line for line in f if line.strip()]
+                validation_results['info']['test_samples'] = len(test_samples)
+                validation_results['info']['has_test_set'] = True
+            else:
+                validation_results['warnings'].append("No test set found (metadata_test.csv missing)")
+                validation_results['info']['has_test_set'] = False
+            
+            # Calculate ratios
+            total = train_count + val_count
+            train_ratio = train_count / total if total > 0 else 0
+            val_ratio = val_count / total if total > 0 else 0
+            
+            validation_results['info']['train_ratio'] = train_ratio
+            validation_results['info']['val_ratio'] = val_ratio
+            
+            # Validate minimum samples
+            if train_count < 10:
+                validation_results['errors'].append(f"Train set too small: {train_count} samples (need at least 10)")
+                validation_results['passed'] = False
+            
+            if val_count < 3:
+                validation_results['errors'].append(f"Validation set too small: {val_count} samples (need at least 3)")
+                validation_results['passed'] = False
+            
+            # Check for data overlap (first and last lines shouldn't match)
+            if train_samples and val_samples:
+                if train_samples[0] == val_samples[0] or train_samples[-1] == val_samples[-1]:
+                    validation_results['warnings'].append("Possible data overlap between train and validation sets")
+            
+            # Validate split ratios
+            if train_ratio < 0.5:
+                validation_results['warnings'].append(f"Train set ratio is low: {train_ratio*100:.1f}% (recommended: >70%)")
+            if val_ratio < 0.05:
+                validation_results['warnings'].append(f"Validation set ratio is low: {val_ratio*100:.1f}% (recommended: >10%)")
+            if val_ratio > 0.30:
+                validation_results['warnings'].append(f"Validation set ratio is high: {val_ratio*100:.1f}% (usually 10-20%)")
+            
+        except Exception as e:
+            validation_results['errors'].append(f"Error reading split files: {str(e)}")
+            validation_results['passed'] = False
+    
+    else:
+        # No proper splits found
+        validation_results['info']['has_proper_splits'] = False
+        
+        if has_original:
+            # Count samples in original file
+            try:
+                with open(original_metadata, 'r', encoding='utf-8') as f:
+                    original_samples = [line for line in f if line.strip()]
+                validation_results['info']['total_samples'] = len(original_samples)
+                
+                validation_results['warnings'].append(
+                    "⚠️ CRITICAL: No train/val splits found!\n"
+                    "   Training and validation will use THE SAME data.\n"
+                    f"   Found {len(original_samples)} samples in metadata.csv\n"
+                    "   This means early stopping won't work correctly!"
+                )
+            except Exception as e:
+                validation_results['errors'].append(f"Error reading metadata.csv: {str(e)}")
+                validation_results['passed'] = False
+        else:
+            validation_results['errors'].append("No metadata files found (neither splits nor original)")
+            validation_results['passed'] = False
+    
+    return validation_results
+
+
 def setup_dataloaders(config: Dict, tokenizer):
     """Setup training and validation dataloaders"""
     from pathlib import Path
@@ -658,6 +784,108 @@ def train(config_path: str, resume_from: Optional[str] = None):
         # Setup device
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         TRAINING_STATE.log(f"✓ Using device: {device}")
+        
+        # PRE-TRAINING VALIDATION: Check dataset splits
+        TRAINING_STATE.log("\n" + "="*60)
+        TRAINING_STATE.log("🔍 PRE-TRAINING VALIDATION")
+        TRAINING_STATE.log("="*60)
+        
+        validation_results = validate_dataset_splits(config)
+        
+        # Log validation results
+        data_dir = validation_results['info'].get('data_dir', 'Unknown')
+        TRAINING_STATE.log(f"📂 Dataset: {data_dir}")
+        TRAINING_STATE.log("")
+        
+        if validation_results['info'].get('has_proper_splits'):
+            # Has proper splits - show detailed info
+            train_samples = validation_results['info']['train_samples']
+            val_samples = validation_results['info']['val_samples']
+            train_ratio = validation_results['info']['train_ratio']
+            val_ratio = validation_results['info']['val_ratio']
+            
+            TRAINING_STATE.log("✅ PASSED: Proper train/val splits detected")
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("🎯 Split Configuration:")
+            TRAINING_STATE.log(f"   ✓ Train set: {train_samples} samples ({train_ratio*100:.1f}%)")
+            TRAINING_STATE.log(f"   ✓ Val set: {val_samples} samples ({val_ratio*100:.1f}%)")
+            
+            if validation_results['info'].get('has_test_set'):
+                test_samples = validation_results['info']['test_samples']
+                TRAINING_STATE.log(f"   ✓ Test set: {test_samples} samples (for final evaluation)")
+            else:
+                TRAINING_STATE.log("   ⚠ Test set: Not found (optional, but recommended)")
+            
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("📝 Files:")
+            TRAINING_STATE.log(f"   ✓ {data_dir}/metadata_train.csv")
+            TRAINING_STATE.log(f"   ✓ {data_dir}/metadata_val.csv")
+            if validation_results['info'].get('has_test_set'):
+                TRAINING_STATE.log(f"   ✓ {data_dir}/metadata_test.csv")
+            
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("✅ Benefits:")
+            TRAINING_STATE.log("   ✓ Early stopping will work correctly")
+            TRAINING_STATE.log("   ✓ Validation metrics will be honest")
+            TRAINING_STATE.log("   ✓ Can detect real overfitting")
+            TRAINING_STATE.log("   ✓ Model evaluation is reliable")
+            
+        else:
+            # No proper splits
+            TRAINING_STATE.log("❌ CRITICAL: No proper train/val splits!")
+            TRAINING_STATE.log("")
+            if 'total_samples' in validation_results['info']:
+                total = validation_results['info']['total_samples']
+                TRAINING_STATE.log(f"⚠️ Found {total} samples in metadata.csv")
+                TRAINING_STATE.log("⚠️ Train and validation will use SAME data!")
+            else:
+                TRAINING_STATE.log("⚠️ No metadata files found!")
+            
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("❌ Problems this causes:")
+            TRAINING_STATE.log("   ❌ Early stopping won't work")
+            TRAINING_STATE.log("   ❌ Validation loss will be misleading")
+            TRAINING_STATE.log("   ❌ Can't detect overfitting")
+            TRAINING_STATE.log("   ❌ Model appears better than it is")
+            
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("🔧 To fix this, run:")
+            TRAINING_STATE.log(f"   python scripts/split_dataset.py --dataset {data_dir} --backup")
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("   Or use Gradio UI:")
+            TRAINING_STATE.log("   1. Go to 'Dataset Management' tab")
+            TRAINING_STATE.log("   2. Use 'Manual Split Dataset' section")
+        
+        # Show warnings
+        if validation_results['warnings']:
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("⚠️ Warnings:")
+            for warning in validation_results['warnings']:
+                for line in warning.split('\n'):
+                    if line.strip():
+                        TRAINING_STATE.log(f"   {line}")
+        
+        # Show errors
+        if validation_results['errors']:
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("❌ Errors:")
+            for error in validation_results['errors']:
+                TRAINING_STATE.log(f"   ❌ {error}")
+        
+        TRAINING_STATE.log("="*60)
+        
+        # Decide whether to continue
+        if not validation_results['passed']:
+            TRAINING_STATE.log("")
+            TRAINING_STATE.log("❌ PRE-TRAINING VALIDATION FAILED!")
+            TRAINING_STATE.log("Cannot start training with current dataset configuration.")
+            TRAINING_STATE.log("Please fix the errors above and try again.")
+            raise ValueError("Dataset validation failed - see logs for details")
+        
+        TRAINING_STATE.log("")
+        TRAINING_STATE.log("✓ PRE-TRAINING VALIDATION PASSED")
+        TRAINING_STATE.log("Proceeding with training...")
+        TRAINING_STATE.log("")
         
         # CRITICAL: Detect tokenizer FIRST to get correct vocab size
         TRAINING_STATE.log("Detecting tokenizer...")
