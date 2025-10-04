@@ -1355,8 +1355,7 @@ The checkpoint will be saved automatically.
                             
                             # Language selector
                             language_dropdown = gr.Dropdown(
-                                label="Language",
-                                info="Select the language for text-to-speech synthesis",
+                                label="Language - Select the language for text-to-speech synthesis",
                                 choices=[
                                     ("Amharic (አማርኛ)", "am"),
                                     ("English", "en"),
@@ -1370,9 +1369,8 @@ The checkpoint will be saved automatically.
                             
                             # Reference audio upload
                             reference_audio = gr.Audio(
-                                label="Reference Audio File (Optional)",
-                                type="numpy",
-                                info="Upload a reference audio file to match speaking style"
+                                label="Reference Audio File (Optional) - Upload a reference audio to match speaking style",
+                                type="numpy"
                             )
                             
                             gr.Markdown("""
@@ -1387,8 +1385,7 @@ The checkpoint will be saved automatically.
                                 maximum=2.0,
                                 value=0.5,
                                 step=0.05,
-                                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
-                                info="Control prosody exaggeration. Values outside 0.3-1.5 may be unstable."
+                                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)"
                             )
                             
                             cfg_pace_slider = gr.Slider(
@@ -1396,17 +1393,15 @@ The checkpoint will be saved automatically.
                                 maximum=1.0,
                                 value=0.5,
                                 step=0.05,
-                                label="CFG/Pace",
-                                info="Classifier-free guidance scale for pace control"
+                                label="CFG/Pace - Classifier-free guidance scale for pace control"
                             )
                             
                             # More options accordion
                             with gr.Accordion("🛠️ More options", open=False):
                                 seed_number = gr.Number(
-                                    label="Random seed (0 for random)",
+                                    label="Random seed (0 for random) - Set seed for reproducible results",
                                     value=0,
-                                    precision=0,
-                                    info="Set seed for reproducible results"
+                                    precision=0
                                 )
                                 
                                 temperature_slider = gr.Slider(
@@ -1414,8 +1409,7 @@ The checkpoint will be saved automatically.
                                     maximum=5.0,
                                     value=0.8,
                                     step=0.05,
-                                    label="Temperature",
-                                    info="Sampling temperature (lower = more deterministic)"
+                                    label="Temperature - Sampling temperature (lower = more deterministic)"
                                 )
                             
                             # Generate button
