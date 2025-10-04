@@ -782,6 +782,14 @@ Then try again.
             if state['is_running']:
                 return "❌ Training is already running! Stop it first before starting new training."
             
+            # Extract dataset path from dropdown selection
+            if dataset_path and not dataset_path.startswith("No datasets"):
+                # Extract path from dropdown text (remove sample count info)
+                if " (" in dataset_path:
+                    dataset_path = dataset_path.split(" (")[0].strip()
+            else:
+                return "❌ Please select a dataset first!"
+            
             # Load base config and update with UI parameters
             import yaml
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -976,6 +984,77 @@ The checkpoint will be saved automatically.
         # Set default to first merged tokenizer if available
         default_value = next((t for t in tokenizers if "merged" in t.lower()), tokenizers[0])
         return gr.Dropdown(choices=tokenizers, value=default_value)
+    
+    def get_available_datasets(self) -> list:
+        """
+        Get list of available datasets from data/srt_datasets/ directory
+        Scans for directories containing metadata.csv
+        """
+        dataset_base = Path("data/srt_datasets")
+        
+        if not dataset_base.exists():
+            return ["No datasets found - Import data first!"]
+        
+        datasets = []
+        
+        # Scan for directories with metadata.csv
+        for item in dataset_base.iterdir():
+            if item.is_dir():
+                metadata_file = item / "metadata.csv"
+                if metadata_file.exists():
+                    # Get dataset info
+                    try:
+                        # Count lines in metadata
+                        with open(metadata_file, 'r', encoding='utf-8') as f:
+                            num_samples = sum(1 for _ in f)
+                        
+                        # Get total duration if dataset_info.json exists
+                        info_file = item / "dataset_info.json"
+                        duration_str = ""
+                        if info_file.exists():
+                            with open(info_file, 'r', encoding='utf-8') as f:
+                                info_data = json.load(f)
+                                total_duration = info_data.get('total_duration', 0)
+                                duration_hours = total_duration / 3600
+                                duration_str = f", {duration_hours:.1f}h"
+                        
+                        # Format: dataset_name (samples, duration)
+                        rel_path = str(item.relative_to(dataset_base.parent))
+                        datasets.append(f"{rel_path} ({num_samples} samples{duration_str})")
+                    except Exception as e:
+                        # If reading fails, just show the path
+                        rel_path = str(item.relative_to(dataset_base.parent))
+                        datasets.append(rel_path)
+        
+        if not datasets:
+            return ["No datasets found - Import SRT files first!"]
+        
+        # Sort datasets - prioritize merged datasets and by sample count
+        def sort_key(d):
+            # Extract sample count from string
+            if "(" in d and "samples" in d:
+                try:
+                    count = int(d.split("(")[1].split(" ")[0])
+                    # Prioritize merged datasets and sort by sample count (descending)
+                    if "merged" in d.lower():
+                        return (0, -count, d)
+                    else:
+                        return (1, -count, d)
+                except:
+                    pass
+            return (2, 0, d)
+        
+        datasets.sort(key=sort_key)
+        
+        return datasets
+    
+    def refresh_datasets(self) -> gr.Dropdown:
+        """Refresh dataset dropdown"""
+        datasets = self.get_available_datasets()
+        # Set default to largest merged dataset if available
+        default_value = next((d for d in datasets if "merged" in d.lower()), 
+                           datasets[0] if datasets else "No datasets found")
+        return gr.Dropdown(choices=datasets, value=default_value)
     
     # ==================== Create Interface ====================
     
@@ -1300,11 +1379,24 @@ The checkpoint will be saved automatically.
                             
                             gr.Markdown("### 💾 Dataset Settings")
                             
-                            dataset_path_input = gr.Textbox(
-                                label="📂 Dataset Path",
-                                value="data/srt_datasets/my_dataset",
-                                placeholder="data/srt_datasets/my_dataset",
-                                info="Path to your prepared dataset"
+                            with gr.Row():
+                                dataset_dropdown = gr.Dropdown(
+                                    label="📂 Select Dataset",
+                                    choices=self.get_available_datasets(),
+                                    value=None,
+                                    info="Choose from data/srt_datasets/ directory",
+                                    interactive=True,
+                                    allow_custom_value=True
+                                )
+                                refresh_datasets_btn = gr.Button(
+                                    "🔄",
+                                    size="sm",
+                                    scale=0,
+                                    min_width=40
+                                )
+                            
+                            dataset_info = gr.Markdown(
+                                value="ℹ️ Select a dataset or enter custom path"
                             )
                             
                             gr.Markdown("### 🔤 Tokenizer Selection")
@@ -1528,12 +1620,17 @@ The checkpoint will be saved automatically.
                         outputs=tokenizer_dropdown
                     )
                     
+                    refresh_datasets_btn.click(
+                        fn=self.refresh_datasets,
+                        outputs=dataset_dropdown
+                    )
+                    
                     start_training_btn.click(
                         fn=self.start_training_ui,
                         inputs=[
                             config_path_input,
                             resume_checkpoint_dropdown,
-                            dataset_path_input,
+                            dataset_dropdown,  # Changed from dataset_path_input to dataset_dropdown
                             tokenizer_dropdown,  # Added tokenizer selection
                             batch_size_slider,
                             learning_rate_slider,
