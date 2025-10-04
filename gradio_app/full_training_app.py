@@ -787,6 +787,14 @@ Then try again.
                 # Extract path from dropdown text (remove sample count info)
                 if " (" in dataset_path:
                     dataset_path = dataset_path.split(" (")[0].strip()
+                
+                # Ensure path is absolute or starts with data/
+                # If it doesn't start with data/, add it
+                if not dataset_path.startswith("data/") and not Path(dataset_path).is_absolute():
+                    # Check if path exists with data/ prefix
+                    test_path = Path(f"data/{dataset_path}")
+                    if test_path.exists():
+                        dataset_path = f"data/{dataset_path}"
             else:
                 return "❌ Please select a dataset first!"
             
@@ -1490,11 +1498,11 @@ The checkpoint will be saved automatically.
                             
                             freeze_until_idx_slider = gr.Slider(
                                 minimum=0,
-                                maximum=2000,
-                                value=704,
+                                maximum=3000,
+                                value=2454,
                                 step=1,
                                 label="🔒 Freeze Until Index",
-                                info="Freeze embeddings 0 to N-1 (704 = Chatterbox base vocab)"
+                                info="Freeze embeddings 0 to N-1 (2454 = Chatterbox multilingual vocab)"
                             )
                             
                             gr.Markdown("### ⚡ Performance Settings")
