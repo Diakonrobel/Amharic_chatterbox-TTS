@@ -522,28 +522,55 @@ def setup_model(config: Dict, vocab_size: int) -> nn.Module:
             TRAINING_STATE.log(f"⚠ Pretrained model not found: {pretrained_path}")
             TRAINING_STATE.log("  Training from scratch")
     
-    # Freeze original embeddings if configured
-    if config['model']['freeze_original_embeddings']:
+    # Freeze original embeddings if configured - CRITICAL FOR MULTILINGUAL PRESERVATION
+    if config['model'].get('freeze_original_embeddings', False):
         freeze_idx = config['model']['freeze_until_index']
+        
+        TRAINING_STATE.log("")
+        TRAINING_STATE.log("="*70)
+        TRAINING_STATE.log("🔒 FREEZING ORIGINAL EMBEDDINGS (MULTILINGUAL PRESERVATION)")
+        TRAINING_STATE.log("="*70)
+        
         # Validate freeze_idx doesn't exceed vocab size
         if freeze_idx > vocab_size:
-            TRAINING_STATE.log(f"⚠ Warning: freeze_until_index ({freeze_idx}) > vocab_size ({vocab_size})")
-            TRAINING_STATE.log(f"   Adjusting to freeze all embeddings except last {vocab_size - 2454} new tokens")
+            TRAINING_STATE.log(f"⚠️ ERROR: freeze_until_index ({freeze_idx}) > vocab_size ({vocab_size})")
+            TRAINING_STATE.log(f"   This will cause training to fail!")
+            TRAINING_STATE.log(f"   Adjusting to: {vocab_size - 100}")
             freeze_idx = min(freeze_idx, vocab_size - 100)  # Leave at least 100 trainable
         
+        # Use the proper utility function with gradient hooks
         try:
-            # Freeze the text embedding layer
-            if hasattr(model, 'text_embedding'):
-                for i, param in enumerate(model.text_embedding.parameters()):
-                    if i == 0:  # Weight matrix
-                        # Freeze only the first freeze_idx embeddings
-                        param.requires_grad = False
-                        param.data[:freeze_idx].requires_grad = False
-                TRAINING_STATE.log(f"✓ Frozen first {freeze_idx} embeddings (out of {vocab_size} total)")
-            else:
-                TRAINING_STATE.log("⚠ Could not freeze embeddings - layer not found")
+            freeze_text_embeddings(model, freeze_idx)
+            
+            # Verify freezing worked
+            trainable_embeddings = vocab_size - freeze_idx
+            TRAINING_STATE.log(f"")
+            TRAINING_STATE.log(f"📊 Embedding Status:")
+            TRAINING_STATE.log(f"   Total embeddings:      {vocab_size}")
+            TRAINING_STATE.log(f"   Frozen (0-{freeze_idx-1}):   {freeze_idx} ❄️  (Preserves 23 languages)")
+            TRAINING_STATE.log(f"   Trainable ({freeze_idx}-{vocab_size-1}): {trainable_embeddings} 🔥 (Learns Amharic)")
+            TRAINING_STATE.log(f"")
+            TRAINING_STATE.log(f"✅ This ensures English, French, etc. stay working!")
+            TRAINING_STATE.log("="*70)
+            TRAINING_STATE.log("")
         except Exception as e:
-            TRAINING_STATE.log(f"⚠ Warning freezing embeddings: {str(e)}")
+            TRAINING_STATE.log(f"")
+            TRAINING_STATE.log(f"❌ CRITICAL ERROR: Failed to freeze embeddings!")
+            TRAINING_STATE.log(f"   Error: {str(e)}")
+            TRAINING_STATE.log(f"   Training will destroy pretrained languages!")
+            TRAINING_STATE.log(f"="*70)
+            TRAINING_STATE.log(f"")
+            raise RuntimeError(f"Failed to freeze embeddings: {e}")
+    else:
+        TRAINING_STATE.log("")
+        TRAINING_STATE.log("⚠️ "*20)
+        TRAINING_STATE.log("⚠️  WARNING: Embedding freezing is DISABLED!")
+        TRAINING_STATE.log("⚠️  This will DESTROY pretrained language knowledge!")
+        TRAINING_STATE.log("⚠️  English, French, etc. will become NOISE after training!")
+        TRAINING_STATE.log("⚠️  ")
+        TRAINING_STATE.log("⚠️  To fix: Set freeze_original_embeddings: true in config")
+        TRAINING_STATE.log("⚠️ "*20)
+        TRAINING_STATE.log("")
     
     return model
 

@@ -49,10 +49,10 @@ data:
 training:
   # Optimization
   optimizer: "AdamW"
-  learning_rate: 2.0e-4
+  learning_rate: 1.0e-5  # CRITICAL: Low LR for finetuning (was 2e-4)
   weight_decay: 0.01
-  betas: [0.8, 0.99]
-  eps: 1.0e-9
+  betas: [0.9, 0.999]  # More conservative for finetuning
+  eps: 1.0e-8
   
   # Learning rate schedule
   lr_scheduler: "ExponentialLR"
@@ -69,8 +69,8 @@ training:
   log_interval: 100
   
   # Gradient
-  grad_clip_thresh: 1.0
-  grad_accumulation_steps: 1
+  grad_clip_thresh: 0.5  # Reduced for stability during finetuning
+  grad_accumulation_steps: 2  # Effective batch size = 32
   
   # Mixed precision
   use_amp: true
@@ -81,8 +81,9 @@ training:
   
   # Early stopping - PREVENT OVERFITTING
   early_stopping: true
-  patience: 20  # Stop if no improvement for 20 evaluations
-  min_epochs: 15  # Minimum epochs before early stopping can trigger
+  patience: 50  # Stop if no improvement for 50 evaluations
+  min_epochs: 30  # Minimum epochs before early stopping can trigger
+  min_delta: 0.001  # Minimum change to qualify as improvement
 
 # Fine-tuning from pretrained model
 finetuning:

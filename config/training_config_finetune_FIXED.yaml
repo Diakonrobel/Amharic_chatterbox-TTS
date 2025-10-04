@@ -1,0 +1,204 @@
+# Amharic TTS Training Configuration - PRODUCTION FINETUNING (FIXED)
+# This config is specifically designed to fix the broken multilingual finetuning
+# 
+# KEY FEATURES:
+# ✅ Preserves original 23 languages (English, French, etc.)
+# ✅ Adds Amharic capability without destroying pretrained knowledge
+# ✅ Uses embedding freezing to prevent catastrophic forgetting
+# ✅ Conservative learning rate for stable finetuning
+# ✅ Proper gradient clipping and accumulation
+
+model:
+  name: "chatterbox_amharic_multilingual"
+  architecture: "chatterbox"
+  
+  # Model dimensions (match Chatterbox pretrained)
+  hidden_channels: 192
+  filter_channels: 768
+  n_heads: 2
+  n_layers: 6
+  kernel_size: 3
+  p_dropout: 0.15  # Slightly higher to prevent overfitting
+  
+  # Vocabulary settings - CRITICAL FOR MULTILINGUAL
+  original_vocab_size: 2454  # Chatterbox multilingual (23 languages)
+  n_vocab: 2535  # Extended: Chatterbox 2454 + Amharic 81 = 2535
+  use_phonemes: true
+  
+  # ⚠️ CRITICAL: FREEZE ORIGINAL EMBEDDINGS TO PRESERVE MULTILINGUAL CAPABILITY
+  freeze_original_embeddings: true  # MUST BE TRUE!
+  freeze_until_index: 2454  # Freeze indices 0-2453 (English, French, German, etc.)
+  
+  # What this does:
+  # - Tokens 0-2453:   FROZEN ❄️ (preserves English, French, etc.)
+  # - Tokens 2454-2534: TRAINABLE 🔥 (learns Amharic)
+  # Result: All 24 languages work! 🎉
+
+# Dataset configuration
+data:
+  dataset_path: "data/processed/ljspeech_format"
+  metadata_file: "metadata.csv"
+  
+  # Audio settings (match Chatterbox)
+  sampling_rate: 22050
+  filter_length: 1024
+  hop_length: 256
+  win_length: 1024
+  n_mel_channels: 80
+  mel_fmin: 0.0
+  mel_fmax: 8000.0
+  
+  # Data splits
+  train_ratio: 0.85
+  val_ratio: 0.10
+  test_ratio: 0.05
+  
+  # Data loading
+  batch_size: 16  # Reasonable for most GPUs
+  num_workers: 2
+  pin_memory: true
+
+# Training hyperparameters - OPTIMIZED FOR SAFE FINETUNING
+training:
+  # Optimization
+  optimizer: "AdamW"
+  
+  # ⚠️ CRITICAL: LOW LEARNING RATE FOR FINETUNING
+  learning_rate: 1.0e-5  # 20x lower than pretraining (2e-4)
+  # Why? High LR destroys pretrained weights. Low LR preserves knowledge.
+  
+  weight_decay: 0.01
+  betas: [0.9, 0.999]  # Standard Adam (more conservative than [0.8, 0.99])
+  eps: 1.0e-8
+  
+  # Learning rate schedule
+  lr_scheduler: "ExponentialLR"
+  lr_decay: 0.999875  # Very gradual decay
+  warmup_steps: 2000  # Warm start
+  
+  # Training duration
+  max_epochs: 1000
+  max_steps: 500000
+  
+  # Checkpointing
+  save_interval: 2500  # Save every 2500 steps
+  eval_interval: 500   # Evaluate every 500 steps
+  log_interval: 50     # Log every 50 steps
+  
+  # Gradient management
+  grad_clip_thresh: 0.5  # Prevent exploding gradients
+  grad_accumulation_steps: 2  # Effective batch size = 32
+  
+  # Mixed precision
+  use_amp: true
+  
+  # Multi-GPU
+  use_ddp: false
+  gpu_ids: [0]
+  
+  # Early stopping - PREVENT OVERFITTING
+  early_stopping: true
+  patience: 50  # Stop if no improvement for 50 evaluations
+  min_epochs: 30  # Minimum epochs before early stopping
+  min_delta: 0.001  # Minimum improvement threshold
+
+# Fine-tuning from pretrained model
+finetuning:
+  enabled: true
+  pretrained_model: "models/pretrained/chatterbox_extended.pt"
+  
+  # Component freezing strategy
+  freeze_encoder: false  # Allow encoder to adapt slightly
+  freeze_decoder: false  # Allow decoder to adapt slightly
+  freeze_vocoder: true   # Keep vocoder completely frozen
+  
+  # Note: Text embeddings are frozen via freeze_original_embeddings above
+
+# Logging
+logging:
+  use_wandb: false
+  wandb_project: "amharic-tts-finetune"
+  wandb_entity: null
+  
+  use_tensorboard: true
+  log_dir: "logs"
+  
+  # What to log
+  log_audio: true
+  log_spectrograms: true
+  log_alignments: true
+
+# Validation
+validation:
+  n_samples: 10
+  sample_texts:
+    # Test Amharic (new)
+    - "ሰላም ለዓለም"
+    - "አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት"
+    - "እንኳን ደህና መጡ"
+    - "አማርኛ በጌዕዝ ፊደል ይጻፋል"
+    - "ኢትዮጵያ በምስራቅ አፍሪካ የምትገኝ ሀገር ናት"
+    # Test English (pretrained - should still work!)
+    - "Hello world, this is a test"
+    - "The quick brown fox jumps over the lazy dog"
+    # Test French (pretrained - should still work!)
+    - "Bonjour le monde"
+    - "Comment allez-vous aujourd'hui"
+    # Test German (pretrained - should still work!)
+    - "Guten Tag, wie geht es Ihnen"
+
+# Paths
+paths:
+  data_dir: "data/srt_datasets/merged_3"
+  tokenizer: "models/tokenizer/Am_tokenizer_merged.json"
+  extended_model: "models/pretrained/chatterbox_extended.pt"
+  checkpoints: "models/checkpoints"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CRITICAL SETTINGS SUMMARY - DO NOT CHANGE UNLESS YOU KNOW WHAT YOU'RE DOING
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# 1. freeze_original_embeddings: true  ← MUST BE TRUE
+# 2. freeze_until_index: 2454          ← Preserves 23 languages
+# 3. learning_rate: 1e-5               ← Low LR prevents weight destruction
+# 4. n_vocab: 2535                     ← Total vocab (2454 + 81)
+# 5. grad_clip_thresh: 0.5             ← Prevents gradient explosions
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPECTED BEHAVIOR
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# During training:
+#   - Only ~81 embeddings are trainable (Amharic tokens)
+#   - ~2454 embeddings are frozen (original languages)
+#   - Loss should decrease smoothly: 10 → 7 → 5 → 3 → 2 → 1
+#   - Training is slower due to low LR (this is GOOD!)
+#
+# After training:
+#   ✅ English: "Hello world" → Clear English speech
+#   ✅ French: "Bonjour" → Clear French speech
+#   ✅ German: "Guten Tag" → Clear German speech
+#   ✅ Amharic: "ሰላም ለዓለም" → Clear Amharic speech
+#   🎉 ALL 24 LANGUAGES WORK!
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# TROUBLESHOOTING
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# If English/French sound like noise after training:
+#   ❌ freeze_original_embeddings was FALSE
+#   ❌ learning_rate was too HIGH
+#   ❌ Wrong checkpoint used (already corrupted)
+#   → Start over with this config from fresh extended model
+#
+# If loss doesn't decrease:
+#   - Check dataset quality
+#   - Verify extended model loaded correctly
+#   - Increase learning_rate slightly (max 2e-5)
+#
+# If loss decreases but audio is bad:
+#   - Train longer (need 200+ epochs typically)
+#   - Check mel-spectrogram quality
+#   - Verify audio preprocessing
+#
+# ═══════════════════════════════════════════════════════════════════════════
