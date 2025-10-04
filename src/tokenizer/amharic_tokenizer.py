@@ -94,19 +94,38 @@ class AmharicTokenizer:
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(texts))
         
-        # Train SentencePiece
+        # Train SentencePiece with enhanced settings for Amharic
         spm.SentencePieceTrainer.train(
             input=temp_file,
             model_prefix=model_prefix,
             vocab_size=vocab_size,
-            character_coverage=1.0,  # Important for Ethiopic script
+            character_coverage=1.0,  # Critical for Ethiopic script coverage
             model_type='bpe',
             pad_id=0,
             unk_id=1,
             bos_id=2,
             eos_id=3,
-            user_defined_symbols=['<MASK>'],
-            normalization_rule_name='nfkc'
+            user_defined_symbols=['<MASK>', '<SPACE>', '<SILENCE>'],
+            normalization_rule_name='nfkc',
+            # Enhanced settings for Amharic
+            input_sentence_size=200000,  # Use more sentences for training
+            shuffle_input_sentence=True,
+            seed_sentencepiece_size=100000,
+            shrinking_factor=0.75,
+            num_threads=4,
+            # Preserve important Amharic characters
+            required_chars='ሀለሐመሠረሰሸቀቐበቨተቸኀነኘአከኸወዘዠየደጀገጠጨጰጸፀፈፐ',
+            # Control subword boundaries better
+            split_by_whitespace=True,
+            split_by_unicode_script=True,
+            split_by_number=True,
+            split_digits=True,
+            treat_whitespace_as_suffix=False,
+            # Training stability
+            train_extremely_large_corpus=False,
+            enable_sampling=True,
+            nbest_size=64,
+            alpha=0.1
         )
         
         # Load trained model

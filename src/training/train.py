@@ -109,14 +109,24 @@ class SimpleAmharicDataset(Dataset):
             audio_path = self.data_dir / 'wavs' / audio_filename
             _, mel = self.audio_processor.process_audio_file(str(audio_path))
             
-            # Tokenize text (simple character-level for now)
+            # Tokenize text with proper Amharic support
             text = sample['text']
             if self.tokenizer:
-                # Use provided tokenizer
-                text_ids = self.tokenizer.encode(text)
+                # Use provided tokenizer with phoneme conversion
+                try:
+                    text_ids = self.tokenizer.encode(text, use_phonemes=True)
+                    # Validate that we didn't get too many UNK tokens
+                    unk_id = getattr(self.tokenizer, 'vocab', {}).get('<UNK>', 1)
+                    unk_ratio = text_ids.count(unk_id) / len(text_ids) if text_ids else 1.0
+                    if unk_ratio > 0.3:  # More than 30% UNK tokens is problematic
+                        TRAINING_STATE.log(f"Warning: High UNK ratio ({unk_ratio:.1%}) in text: {text[:50]}...")
+                except Exception as e:
+                    TRAINING_STATE.log(f"Warning: Tokenization failed for '{text[:30]}...': {str(e)}")
+                    # Fallback to direct character encoding
+                    text_ids = self._encode_amharic_fallback(text)
             else:
-                # Simple character-level tokenization as fallback
-                text_ids = [ord(c) % 1000 for c in text[:100]]  # Limit length
+                # Enhanced fallback for Amharic characters
+                text_ids = self._encode_amharic_fallback(text)
             
             return {
                 'text_ids': text_ids,
@@ -125,13 +135,52 @@ class SimpleAmharicDataset(Dataset):
             }
         except Exception as e:
             # If audio loading fails, return a simple dummy to avoid crashing
-            TRAINING_STATE.log(f"Warning: Failed to load {sample['audio']}: {str(e)}")
-            # Return minimal valid data
+            TRAINING_STATE.log(f"Warning: Failed to load {sample['audio']}: '{sample.get('text', '')[:30]}...' - {str(e)}")
+            # Return minimal valid data with proper text encoding
+            try:
+                text_ids = self._encode_amharic_fallback(sample.get('text', 'ሰላም'))  # Default Amharic text
+            except:
+                text_ids = [0] * 10  # Final fallback
+            
             return {
-                'text_ids': [0] * 10,  # Dummy tokens
+                'text_ids': text_ids,
                 'mel': torch.zeros(80, 100),  # Dummy mel
                 'audio_path': str(audio_path) if 'audio_path' in locals() else sample['audio']
             }
+    
+    def _encode_amharic_fallback(self, text: str) -> List[int]:
+        """
+        Fallback encoding for Amharic text when tokenizer is not available
+        Properly handles Ethiopic Unicode range
+        """
+        import unicodedata
+        
+        # Normalize Unicode (important for Amharic)
+        text = unicodedata.normalize('NFC', text)
+        
+        # Create a simple but valid encoding for Amharic
+        # Map Ethiopic characters (U+1200-U+137F) to reasonable token IDs
+        tokens = []
+        for char in text[:100]:  # Limit length
+            if char.isspace():
+                tokens.append(0)  # Space/padding token
+            else:
+                code_point = ord(char)
+                if 0x1200 <= code_point <= 0x137F:  # Ethiopic script
+                    # Map to range 100-999 to avoid conflicts with special tokens
+                    token_id = 100 + (code_point - 0x1200) % 800
+                elif 0x20 <= code_point <= 0x7F:  # ASCII
+                    token_id = code_point
+                else:
+                    # Other Unicode characters
+                    token_id = 50 + (code_point % 50)
+                tokens.append(token_id)
+        
+        # Ensure minimum length
+        if len(tokens) < 5:
+            tokens.extend([0] * (5 - len(tokens)))
+        
+        return tokens
 
 
 def load_config(config_path: str) -> Dict:
