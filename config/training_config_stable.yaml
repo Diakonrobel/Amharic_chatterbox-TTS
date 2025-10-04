@@ -82,7 +82,8 @@ training:
   
   # Early stopping - PREVENT OVERFITTING
   early_stopping: true
-  patience: 20  # Stop if no improvement for 20 eval intervals
+  patience: 15  # Stop if no improvement for 15 evaluations
+  min_epochs: 20  # Minimum epochs before early stopping can trigger
 
 # Fine-tuning from pretrained model
 finetuning:

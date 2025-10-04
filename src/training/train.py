@@ -39,9 +39,14 @@ class TrainingState:
         self.total_steps = 0
         self.current_loss = 0.0
         self.best_loss = float('inf')
+        self.best_val_loss = float('inf')
         self.status_message = "Not started"
         self.logs = []
         self.last_checkpoint = None
+        # Early stopping state
+        self.epochs_without_improvement = 0
+        self.best_checkpoint_path = None
+        self.val_loss_history = []
         
     def log(self, message: str):
         """Add log message"""
@@ -572,14 +577,22 @@ def validate(model, val_loader, criterion, config):
     
     TRAINING_STATE.log(f"Validation - Total: {avg_loss:.4f} | Mel: {avg_mel_loss:.4f} | Duration: {avg_duration_loss:.4f}")
     
-    if avg_loss < TRAINING_STATE.best_loss:
-        TRAINING_STATE.best_loss = avg_loss
+    # Track validation loss history for overfitting detection
+    TRAINING_STATE.val_loss_history.append(avg_loss)
+    
+    if avg_loss < TRAINING_STATE.best_val_loss:
+        TRAINING_STATE.best_val_loss = avg_loss
+        TRAINING_STATE.best_loss = avg_loss  # Keep for backward compatibility
+        TRAINING_STATE.epochs_without_improvement = 0
         TRAINING_STATE.log(f"✓ New best validation loss: {avg_loss:.4f}")
+    else:
+        TRAINING_STATE.epochs_without_improvement += 1
+        TRAINING_STATE.log(f"⚠ No improvement ({TRAINING_STATE.epochs_without_improvement} epochs without improvement)")
     
     return avg_loss
 
 
-def save_checkpoint(model, optimizer, epoch, step, loss, config):
+def save_checkpoint(model, optimizer, epoch, step, loss, config, is_best=False):
     """Save training checkpoint"""
     checkpoint_dir = Path(config['paths']['checkpoints'])
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -592,6 +605,7 @@ def save_checkpoint(model, optimizer, epoch, step, loss, config):
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss,
+        'best_val_loss': TRAINING_STATE.best_val_loss,
         'config': config
     }
     
@@ -600,6 +614,13 @@ def save_checkpoint(model, optimizer, epoch, step, loss, config):
     # Also save as latest
     latest_path = checkpoint_dir / "checkpoint_latest.pt"
     torch.save(checkpoint, latest_path)
+    
+    # Save as best if this is the best model so far
+    if is_best:
+        best_path = checkpoint_dir / "checkpoint_best.pt"
+        torch.save(checkpoint, best_path)
+        TRAINING_STATE.best_checkpoint_path = str(best_path)
+        TRAINING_STATE.log(f"✓ Saved best model: {best_path}")
     
     return checkpoint_path
 
@@ -682,6 +703,14 @@ def train(config_path: str, resume_from: Optional[str] = None):
         # Calculate total steps
         TRAINING_STATE.total_steps = len(train_loader) * config['training']['max_epochs']
         
+        # Early stopping configuration
+        early_stopping_enabled = config.get('training', {}).get('early_stopping', False)
+        early_stopping_patience = config.get('training', {}).get('patience', 20)
+        min_epochs = config.get('training', {}).get('min_epochs', 10)
+        
+        if early_stopping_enabled:
+            TRAINING_STATE.log(f"✓ Early stopping enabled (patience: {early_stopping_patience}, min epochs: {min_epochs})")
+        
         # Training loop
         TRAINING_STATE.log("\nStarting training...")
         TRAINING_STATE.status_message = "Training in progress"
@@ -710,6 +739,36 @@ def train(config_path: str, resume_from: Optional[str] = None):
                 
                 if writer:
                     writer.add_scalar('Loss/validation', val_loss, TRAINING_STATE.current_step)
+                
+                # Save checkpoint if this is the best model
+                if val_loss == TRAINING_STATE.best_val_loss:
+                    save_checkpoint(
+                        model, optimizer, epoch, TRAINING_STATE.current_step,
+                        val_loss, config, is_best=True
+                    )
+                
+                # Early stopping check
+                if early_stopping_enabled and epoch >= min_epochs:
+                    if TRAINING_STATE.epochs_without_improvement >= early_stopping_patience:
+                        TRAINING_STATE.log("\n" + "="*60)
+                        TRAINING_STATE.log("🛑 EARLY STOPPING TRIGGERED")
+                        TRAINING_STATE.log("="*60)
+                        TRAINING_STATE.log(f"No improvement for {early_stopping_patience} evaluations")
+                        TRAINING_STATE.log(f"Best validation loss: {TRAINING_STATE.best_val_loss:.4f}")
+                        TRAINING_STATE.log(f"Current validation loss: {val_loss:.4f}")
+                        
+                        # Check for overfitting
+                        if len(TRAINING_STATE.val_loss_history) >= 5:
+                            recent_losses = TRAINING_STATE.val_loss_history[-5:]
+                            if all(recent_losses[i] >= recent_losses[i-1] for i in range(1, len(recent_losses))):
+                                TRAINING_STATE.log("⚠️ OVERFITTING DETECTED: Validation loss increasing consistently")
+                        
+                        if TRAINING_STATE.best_checkpoint_path:
+                            TRAINING_STATE.log(f"✓ Best model saved at: {TRAINING_STATE.best_checkpoint_path}")
+                        
+                        TRAINING_STATE.log("Stopping training to prevent overfitting...")
+                        TRAINING_STATE.status_message = "Stopped: Early stopping (overfitting detected)"
+                        break
             
             # Check max steps
             if TRAINING_STATE.current_step >= config['training']['max_steps']:

@@ -78,6 +78,11 @@ training:
   # Multi-GPU
   use_ddp: false
   gpu_ids: [0]
+  
+  # Early stopping - PREVENT OVERFITTING
+  early_stopping: true
+  patience: 20  # Stop if no improvement for 20 evaluations
+  min_epochs: 15  # Minimum epochs before early stopping can trigger
 
 # Fine-tuning from pretrained model
 finetuning:
