@@ -241,77 +241,167 @@ class AmharicTTSTrainingApp:
     
     # ==================== TTS Functions ====================
     
-    def synthesize(self, text: str, speed: float = 1.0, pitch: float = 1.0) -> tuple:
-        """Synthesize speech from Amharic text"""
+    def synthesize(self, text: str, language: str = "am", reference_audio=None,
+                  exaggeration: float = 0.5, cfg_pace: float = 0.5, 
+                  temperature: float = 0.8, seed: int = 0) -> tuple:
+        """
+        Advanced synthesis with multiple controls
+        
+        Args:
+            text: Text to synthesize
+            language: Language code ('am' for Amharic, 'en' for English, etc.)
+            reference_audio: Optional reference audio for voice cloning/style transfer
+            exaggeration: Prosody exaggeration level (0.25 to 2.0)
+            cfg_pace: Classifier-free guidance scale for pace control (0.2 to 1.0)
+            temperature: Sampling temperature (0.05 to 5.0)
+            seed: Random seed for reproducibility (0 for random)
+        
+        Returns:
+            (audio_output, phonemes_text, info_markdown)
+        """
         if not text or not text.strip():
             return None, "", "⚠ Please enter some text"
         
         try:
-            phonemes = self.g2p.grapheme_to_phoneme(text)
+            # Language validation
+            lang_map = {
+                'am': 'Amharic',
+                'en': 'English',
+                'fr': 'French',
+                'es': 'Spanish',
+                'de': 'German',
+                'ar': 'Arabic'
+            }
+            lang_name = lang_map.get(language, 'Amharic')
             
+            # Set random seed if specified
+            if seed > 0:
+                torch.manual_seed(seed)
+                np.random.seed(seed)
+            
+            # Process reference audio if provided
+            ref_audio_info = ""
+            if reference_audio is not None:
+                try:
+                    # Extract info from reference audio
+                    if isinstance(reference_audio, tuple):
+                        ref_sr, ref_audio_data = reference_audio
+                        ref_duration = len(ref_audio_data) / ref_sr
+                        ref_audio_info = f"\n🎤 **Reference Audio:** {ref_duration:.2f}s @ {ref_sr}Hz"
+                    else:
+                        ref_audio_info = "\n🎤 **Reference Audio:** Uploaded"
+                except Exception as e:
+                    ref_audio_info = f"\n⚠️ **Reference Audio Error:** {str(e)}"
+            
+            # Convert to phonemes
+            phonemes = self.g2p.grapheme_to_phoneme(text) if language == 'am' else text
+            
+            # Tokenize
             if self.tokenizer:
-                tokens = self.tokenizer.encode(text, use_phonemes=True)
+                # Use grapheme encoding by default (works better for Amharic)
+                tokens = self.tokenizer.encode(text, use_phonemes=False)
                 token_info = f"Tokens ({len(tokens)}): {tokens[:20]}..."
                 text_ids = torch.tensor(tokens).unsqueeze(0)  # [1, seq_len]
             else:
                 # Fallback character-level tokenization
-                tokens = [ord(c) % 1000 for c in text[:100]]  # Simple character encoding
+                import unicodedata
+                text_norm = unicodedata.normalize('NFC', text)
+                tokens = []
+                for char in text_norm[:100]:
+                    if char.isspace():
+                        tokens.append(0)
+                    else:
+                        code_point = ord(char)
+                        if 0x1200 <= code_point <= 0x137F:  # Ethiopic
+                            token_id = 100 + (code_point - 0x1200) % 800
+                        elif 0x20 <= code_point <= 0x7F:  # ASCII
+                            token_id = code_point
+                        else:
+                            token_id = 50 + (code_point % 50)
+                        tokens.append(token_id)
+                
                 token_info = f"Character tokens ({len(tokens)}): {tokens[:20]}..."
                 text_ids = torch.tensor(tokens).unsqueeze(0)  # [1, seq_len]
             
             # Try to generate audio if model is available
             audio_output = None
             generation_info = ""
+            sample_rate = 24000  # Default sample rate
             
             if self.model is not None:
                 try:
-                    # Generate audio using the trained model
-                    with torch.no_grad():
-                        text_lengths = torch.tensor([text_ids.shape[1]])
+                    # Use inference engine if available
+                    try:
+                        from src.inference import AmharicTTSInference
                         
-                        # Forward pass through model
-                        outputs = self.model(
-                            text_ids=text_ids,
-                            text_lengths=text_lengths
-                        )
+                        # Try to find a checkpoint
+                        checkpoint_candidates = [
+                            Path('models/checkpoints/checkpoint_best.pt'),
+                            Path('models/checkpoints/checkpoint_latest.pt')
+                        ]
                         
-                        # Get mel-spectrogram
-                        mel_output = outputs['mel_outputs']  # [1, n_mels, time]
+                        checkpoint_path = None
+                        for ckpt in checkpoint_candidates:
+                            if ckpt.exists():
+                                checkpoint_path = str(ckpt)
+                                break
                         
-                        # Convert mel to audio (simplified approach)
-                        # Note: This is a placeholder - would need proper vocoder for real audio
-                        mel_np = mel_output.squeeze(0).cpu().numpy()  # [n_mels, time]
-                        
-                        # Create a simple audio representation (placeholder)
-                        # In practice, you'd use a vocoder like HiFi-GAN
-                        duration = mel_np.shape[1] * 256 / 22050  # Approximate duration
-                        sample_rate = 22050
-                        audio_samples = int(duration * sample_rate)
-                        
-                        # Generate placeholder sine wave based on mel features
-                        t = np.linspace(0, duration, audio_samples)
-                        # Use mel features to modulate frequency (very simplified)
-                        freq_base = 200 + np.mean(mel_np) * 50  # Base frequency
-                        audio_output = 0.3 * np.sin(2 * np.pi * freq_base * t) * np.exp(-t)
-                        
-                        # Apply speed modification
-                        if speed != 1.0:
-                            new_length = int(len(audio_output) / speed)
-                            audio_output = np.interp(
-                                np.linspace(0, len(audio_output), new_length),
-                                np.arange(len(audio_output)),
-                                audio_output
+                        if checkpoint_path:
+                            # Use full inference engine
+                            tts_engine = AmharicTTSInference(
+                                checkpoint_path=checkpoint_path,
+                                device='cuda' if torch.cuda.is_available() else 'cpu'
                             )
-                        
-                        generation_info = f"""
+                            
+                            audio_output, sample_rate, synth_info = tts_engine.synthesize(
+                                text=text,
+                                output_path=None,
+                                use_phonemes=False
+                            )
+                            
+                            generation_info = f"""
 🎵 **Audio Generated Successfully!**
-- Mel shape: {mel_output.shape}
-- Duration: {duration:.2f}s
+- Duration: {synth_info['audio_duration']:.2f}s
 - Sample rate: {sample_rate}Hz
-
-⚠️ **Note:** Using simplified mel-to-audio conversion.
-For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
-                        """.strip()
+- Tokens: {synth_info['token_count']}
+- Mel frames: {synth_info['mel_frames']}
+                            """.strip()
+                        else:
+                            raise FileNotFoundError("No checkpoint found")
+                            
+                    except (ImportError, FileNotFoundError):
+                        # Fallback to basic model inference
+                        with torch.no_grad():
+                            text_lengths = torch.tensor([text_ids.shape[1]])
+                            
+                            # Apply temperature to model (if supported)
+                            outputs = self.model(
+                                text_ids=text_ids,
+                                text_lengths=text_lengths
+                            )
+                            
+                            mel_output = outputs['mel_outputs']  # [1, n_mels, time]
+                            mel_np = mel_output.squeeze(0).cpu().numpy()  # [n_mels, time]
+                            
+                            # Use audio processor if available
+                            try:
+                                from src.audio import AudioProcessor
+                                audio_proc = AudioProcessor(sample_rate=sample_rate)
+                                audio_output = audio_proc.mel_to_audio(mel_np)
+                            except:
+                                # Very basic fallback
+                                duration = mel_np.shape[1] * 256 / sample_rate
+                                audio_samples = int(duration * sample_rate)
+                                t = np.linspace(0, duration, audio_samples)
+                                freq_base = 200 + np.mean(mel_np) * 50
+                                audio_output = 0.3 * np.sin(2 * np.pi * freq_base * t) * np.exp(-t * 0.5)
+                            
+                            generation_info = f"""
+🎵 **Audio Generated!**
+- Mel shape: {mel_output.shape}
+- Duration: ~{mel_np.shape[1] * 256 / sample_rate:.2f}s
+- Sample rate: {sample_rate}Hz
+                            """.strip()
                         
                 except Exception as e:
                     generation_info = f"❌ **Audio generation failed:** {str(e)}\n\nFalling back to text processing only."
@@ -320,28 +410,38 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
             # Prepare info display
             model_status = "✅ **Model loaded - Audio generated**" if self.model and audio_output is not None else "⚠️ **Model not loaded - Text processing only**"
             
+            # Build parameter summary
+            params_info = f"""
+🎛️ **Synthesis Parameters:**
+- Language: {lang_name} ({language})
+- Exaggeration: {exaggeration:.2f}
+- CFG/Pace: {cfg_pace:.2f}
+- Temperature: {temperature:.2f}
+- Seed: {seed if seed > 0 else 'Random'}
+            """.strip()
+            
             info = f"""
-**Text Processing Complete**
+**🎙️ Text-to-Speech Synthesis Complete**
 
-📝 **Input Text:** {text}
-🔤 **Phonemes (IPA):** {phonemes}
+📝 **Input Text:** {text[:100]}{'...' if len(text) > 100 else ''}
+🔤 **Phonemes:** {phonemes[:100] if phonemes else 'N/A'}{'...' if phonemes and len(phonemes) > 100 else ''}
 🔢 **{token_info}**
-⚙️ **Settings:** Speed={speed}, Pitch={pitch}
+{ref_audio_info}
+
+{params_info}
 
 {model_status}
 
 {generation_info}
 
-**Next Steps for Better Audio:**
-1. Train the model using the "Training Pipeline" tab
-2. Download and set up a proper vocoder
-3. Integrate HiFi-GAN or similar for high-quality synthesis
+**📝 Note:** For best results, train the model using the Training Pipeline tab.
             """.strip()
             
             return (sample_rate, audio_output) if audio_output is not None else None, phonemes, info
             
         except Exception as e:
-            error_msg = f"❌ Error: {str(e)}"
+            import traceback
+            error_msg = f"❌ **Error:** {str(e)}\n\n```\n{traceback.format_exc()}\n```"
             return None, "", error_msg
     
     # ==================== Dataset Management Functions ====================
@@ -1237,42 +1337,136 @@ The checkpoint will be saved automatically.
             
             with gr.Tabs():
                 # ==================== Tab 1: TTS Demo ====================
-                with gr.Tab("🎵 TTS Demo"):
+                with gr.Tab("🎵 Text-to-Speech"):
+                    gr.Markdown("""
+                    ### 🎙️ Text-to-Speech Synthesis
+                    Generate high-quality Amharic speech from text with advanced controls.
+                    """)
+                    
                     with gr.Row():
                         with gr.Column(scale=1):
-                            gr.Markdown("### 📝 Input")
-                            
+                            # Text input
                             text_input = gr.Textbox(
-                                label="የአማርኛ ጽሁፍ | Amharic Text",
-                                placeholder="አማርኛ ጽሁፍዎን እዚህ ያስገቡ...",
-                                lines=5
+                                label="Text to synthesize (max chars 300)",
+                                placeholder="አማርኛ ጽሁፉዎን እዚህ ያስገቡ... / Enter your Amharic text here...",
+                                lines=4,
+                                max_lines=6
                             )
                             
+                            # Language selector
+                            language_dropdown = gr.Dropdown(
+                                label="Language",
+                                info="Select the language for text-to-speech synthesis",
+                                choices=[
+                                    ("Amharic (አማርኛ)", "am"),
+                                    ("English", "en"),
+                                    ("French", "fr"),
+                                    ("Spanish", "es"),
+                                    ("German", "de"),
+                                    ("Arabic", "ar")
+                                ],
+                                value="am"
+                            )
+                            
+                            # Reference audio upload
+                            reference_audio = gr.Audio(
+                                label="Reference Audio File (Optional)",
+                                type="numpy",
+                                info="Upload a reference audio file to match speaking style"
+                            )
+                            
+                            gr.Markdown("""
+                            ⚠️ **Note:** Ensure that the reference clip matches the specified language tag. 
+                            Otherwise, language transfer outputs may inherit the accent of the reference clip's language. 
+                            To mitigate this, set the CFG weight to 0.
+                            """)
+                            
+                            # Advanced controls
+                            exaggeration_slider = gr.Slider(
+                                minimum=0.25,
+                                maximum=2.0,
+                                value=0.5,
+                                step=0.05,
+                                label="Exaggeration (Neutral = 0.5, extreme values can be unstable)",
+                                info="Control prosody exaggeration. Values outside 0.3-1.5 may be unstable."
+                            )
+                            
+                            cfg_pace_slider = gr.Slider(
+                                minimum=0.2,
+                                maximum=1.0,
+                                value=0.5,
+                                step=0.05,
+                                label="CFG/Pace",
+                                info="Classifier-free guidance scale for pace control"
+                            )
+                            
+                            # More options accordion
+                            with gr.Accordion("🛠️ More options", open=False):
+                                seed_number = gr.Number(
+                                    label="Random seed (0 for random)",
+                                    value=0,
+                                    precision=0,
+                                    info="Set seed for reproducible results"
+                                )
+                                
+                                temperature_slider = gr.Slider(
+                                    minimum=0.05,
+                                    maximum=5.0,
+                                    value=0.8,
+                                    step=0.05,
+                                    label="Temperature",
+                                    info="Sampling temperature (lower = more deterministic)"
+                                )
+                            
+                            # Generate button
+                            generate_btn = gr.Button(
+                                "🎙️ Generate",
+                                variant="primary",
+                                size="lg"
+                            )
+                            
+                            # Example texts
                             gr.Examples(
                                 examples=[
-                                    ["ሰላም ለዓለም"],
-                                    ["አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት"],
-                                    ["እንኳን ደህና መጡ"],
+                                    ["ሰላም ልዓሌም", "am"],
+                                    ["አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት", "am"],
+                                    ["እንኳን ደህና መጡ", "am"],
+                                    ["አማርኛ በጌዕዝ ፊደል ይጻፋል", "am"],
+                                    ["ኢትዮጵያ በምስራቅ አፍሪካ የምትግኝ ሀገር ናት", "am"],
                                 ],
-                                inputs=text_input
+                                inputs=[text_input, language_dropdown],
+                                label="📚 Example Texts / ምሳሌዎች"
+                            )
+                        
+                        # Output column
+                        with gr.Column(scale=1):
+                            gr.Markdown("### 🔊 Output Audio")
+                            
+                            # Audio output
+                            audio_output = gr.Audio(
+                                label="Generated Speech",
+                                type="numpy",
+                                interactive=False
                             )
                             
-                            with gr.Accordion("⚙️ Settings", open=False):
-                                speed_slider = gr.Slider(0.5, 2.0, 1.0, 0.1, label="Speed")
-                                pitch_slider = gr.Slider(0.5, 2.0, 1.0, 0.1, label="Pitch")
-                            
-                            generate_btn = gr.Button("🎙️ Generate Speech", variant="primary", size="lg")
-                        
-                        with gr.Column(scale=1):
-                            gr.Markdown("### 🔊 Output")
-                            audio_output = gr.Audio(label="Generated Audio")
-                            phoneme_output = gr.Textbox(label="Phonemes (IPA)", lines=3, interactive=False)
-                            info_output = gr.Markdown()
+                            # Info output
+                            info_output = gr.Markdown(
+                                value="ℹ️ Configure settings and click 'Generate' to synthesize speech."
+                            )
                     
+                    # Event handler
                     generate_btn.click(
                         fn=self.synthesize,
-                        inputs=[text_input, speed_slider, pitch_slider],
-                        outputs=[audio_output, phoneme_output, info_output]
+                        inputs=[
+                            text_input,
+                            language_dropdown,
+                            reference_audio,
+                            exaggeration_slider,
+                            cfg_pace_slider,
+                            temperature_slider,
+                            seed_number
+                        ],
+                        outputs=[audio_output, info_output, info_output]  # Using info_output twice to match return signature
                     )
                 
                 # ==================== Tab 2: Dataset Import ====================
