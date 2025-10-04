@@ -108,10 +108,16 @@ class AmharicTTSInference:
                 with open(config_file, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)
                 print(f"  Loaded config from: {config_file}")
+                # Ensure config has all required keys
+                config = self._validate_config(config)
                 return config
         
         # Default config if not found
         print(f"  Using default config (no config file found)")
+        return self._get_default_config()
+    
+    def _get_default_config(self) -> Dict:
+        """Get default configuration"""
         return {
             'model': {
                 'n_vocab': 2535,  # Default for merged tokenizer
@@ -130,6 +136,30 @@ class AmharicTTSInference:
                 'n_mel_channels': 80
             }
         }
+    
+    def _validate_config(self, config: Dict) -> Dict:
+        """Validate and fill missing config keys with defaults"""
+        default_config = self._get_default_config()
+        
+        # Ensure 'model' section exists
+        if 'model' not in config:
+            config['model'] = {}
+        
+        # Fill missing model keys
+        for key, value in default_config['model'].items():
+            if key not in config['model']:
+                config['model'][key] = value
+        
+        # Ensure 'data' section exists
+        if 'data' not in config:
+            config['data'] = {}
+        
+        # Fill missing data keys
+        for key, value in default_config['data'].items():
+            if key not in config['data']:
+                config['data'][key] = value
+        
+        return config
     
     def _load_tokenizer(self):
         """Load the tokenizer"""

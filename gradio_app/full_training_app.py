@@ -391,8 +391,20 @@ class AmharicTTSTrainingApp:
                         
                         if checkpoint_path:
                             # Use full inference engine
+                            # Try to find config
+                            config_candidates = [
+                                Path('config/training_config.yaml'),
+                                Path('configs/training_config.yaml'),
+                            ]
+                            config_path = None
+                            for cfg in config_candidates:
+                                if cfg.exists():
+                                    config_path = str(cfg)
+                                    break
+                            
                             tts_engine = AmharicTTSInference(
                                 checkpoint_path=checkpoint_path,
+                                config_path=config_path,
                                 device='cuda' if torch.cuda.is_available() else 'cpu'
                             )
                             
