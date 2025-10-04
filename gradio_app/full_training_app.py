@@ -764,7 +764,7 @@ Then try again.
             return f"❌ Error getting training status: {str(e)}"
     
     def start_training_ui(self, config_path: str, resume_checkpoint: str, 
-                         dataset_path: str, batch_size: int, learning_rate: float,
+                         dataset_path: str, selected_tokenizer: str, batch_size: int, learning_rate: float,
                          max_epochs: int, max_steps: int, save_interval: int,
                          eval_interval: int, freeze_embeddings: bool, 
                          freeze_until_idx: int, use_amp: bool) -> str:
@@ -809,6 +809,19 @@ Then try again.
             config['training']['num_workers'] = config.get('training', {}).get('num_workers', 2)
             config['model']['freeze_original_embeddings'] = freeze_embeddings
             config['model']['freeze_until_index'] = freeze_until_idx
+            
+            # Handle tokenizer selection
+            if selected_tokenizer and not selected_tokenizer.startswith("Auto-detect") and not selected_tokenizer.startswith("No tokenizers"):
+                # Extract filename from dropdown text (remove vocab info)
+                tokenizer_name = selected_tokenizer.split(" (")[0].strip()
+                tokenizer_path = f"models/tokenizer/{tokenizer_name}"
+                config['paths']['tokenizer'] = tokenizer_path
+                print(f"Using selected tokenizer: {tokenizer_path}")
+            else:
+                # Auto-detect - will use default priority in training code
+                if 'tokenizer' in config.get('paths', {}):
+                    del config['paths']['tokenizer']
+                print("Using auto-detect tokenizer mode")
             
             # Save temporary config
             temp_config_path = Path("config") / "temp_training_config.yaml"
@@ -893,6 +906,76 @@ The checkpoint will be saved automatically.
         """Refresh checkpoint dropdown"""
         checkpoints = self.get_available_checkpoints()
         return gr.Dropdown(choices=checkpoints, value=checkpoints[0])
+    
+    def get_available_tokenizers(self) -> list:
+        """
+        Get list of available tokenizers from models/tokenizer/ directory
+        Scans for .json files (merged tokenizers) and subdirectories with sentencepiece models
+        """
+        tokenizer_dir = Path("models/tokenizer")
+        
+        if not tokenizer_dir.exists():
+            return ["No tokenizers found"]
+        
+        tokenizers = []
+        
+        # Find JSON tokenizer files (merged tokenizers)
+        for json_file in tokenizer_dir.glob("*.json"):
+            # Get relative path from models/tokenizer/
+            rel_path = json_file.name
+            
+            # Add size info
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    vocab = json.load(f)
+                vocab_size = len(vocab)
+                tokenizers.append(f"{rel_path} (vocab: {vocab_size})")
+            except:
+                tokenizers.append(rel_path)
+        
+        # Find subdirectories with tokenizers
+        for subdir in tokenizer_dir.iterdir():
+            if subdir.is_dir():
+                # Check if it has sentencepiece.model
+                if (subdir / "sentencepiece.model").exists():
+                    rel_path = subdir.name
+                    
+                    # Try to get vocab size
+                    vocab_file = subdir / "vocab.json"
+                    if vocab_file.exists():
+                        try:
+                            with open(vocab_file, 'r', encoding='utf-8') as f:
+                                vocab = json.load(f)
+                            vocab_size = len(vocab)
+                            tokenizers.append(f"{rel_path}/ (vocab: {vocab_size})")
+                        except:
+                            tokenizers.append(f"{rel_path}/")
+                    else:
+                        tokenizers.append(f"{rel_path}/")
+        
+        if not tokenizers:
+            return ["No tokenizers found - Train one first!"]
+        
+        # Sort tokenizers - prioritize merged tokenizers
+        def sort_key(t):
+            if "merged" in t.lower():
+                return (0, t)
+            elif ".json" in t:
+                return (1, t)
+            else:
+                return (2, t)
+        
+        tokenizers.sort(key=sort_key)
+        
+        # Add instruction at the beginning
+        return ["Auto-detect (recommended)"] + tokenizers
+    
+    def refresh_tokenizers(self) -> gr.Dropdown:
+        """Refresh tokenizer dropdown"""
+        tokenizers = self.get_available_tokenizers()
+        # Set default to first merged tokenizer if available
+        default_value = next((t for t in tokenizers if "merged" in t.lower()), tokenizers[0])
+        return gr.Dropdown(choices=tokenizers, value=default_value)
     
     # ==================== Create Interface ====================
     
@@ -1224,6 +1307,28 @@ The checkpoint will be saved automatically.
                                 info="Path to your prepared dataset"
                             )
                             
+                            gr.Markdown("### 🔤 Tokenizer Selection")
+                            
+                            with gr.Row():
+                                tokenizer_dropdown = gr.Dropdown(
+                                    label="📝 Select Tokenizer",
+                                    choices=self.get_available_tokenizers(),
+                                    value=None,
+                                    info="Choose tokenizer from models/tokenizer/ directory",
+                                    interactive=True,
+                                    allow_custom_value=True
+                                )
+                                refresh_tokenizers_btn = gr.Button(
+                                    "🔄",
+                                    size="sm",
+                                    scale=0,
+                                    min_width=40
+                                )
+                            
+                            tokenizer_info = gr.Markdown(
+                                value="ℹ️ **Recommended:** Am_tokenizer_merged.json (Chatterbox 23 langs + Amharic)"
+                            )
+                            
                             gr.Markdown("### 📊 Training Hyperparameters")
                             
                             with gr.Row():
@@ -1418,12 +1523,18 @@ The checkpoint will be saved automatically.
                         outputs=resume_checkpoint_dropdown
                     )
                     
+                    refresh_tokenizers_btn.click(
+                        fn=self.refresh_tokenizers,
+                        outputs=tokenizer_dropdown
+                    )
+                    
                     start_training_btn.click(
                         fn=self.start_training_ui,
                         inputs=[
                             config_path_input,
                             resume_checkpoint_dropdown,
                             dataset_path_input,
+                            tokenizer_dropdown,  # Added tokenizer selection
                             batch_size_slider,
                             learning_rate_slider,
                             max_epochs_slider,
