@@ -612,14 +612,16 @@ class SRTDatasetBuilder:
             # Copy audio files and update paths
             for seg in segments:
                 old_audio_path = dataset_dir / seg.audio_path
-                new_filename = f"{dataset_name}_{Path(seg.audio_path).name}"
-                new_audio_path = wavs_dir / new_filename
+                # Use original filename without adding dataset prefix
+                # This prevents: Merged-2nd_Merged-Amharic_...
+                original_filename = Path(seg.audio_path).name
+                new_audio_path = wavs_dir / original_filename
                 
                 # Copy audio file
                 shutil.copy2(old_audio_path, new_audio_path)
                 
                 # Update segment info
-                seg.audio_path = str(Path("wavs") / new_filename)
+                seg.audio_path = str(Path("wavs") / original_filename)
                 seg.metadata["original_dataset"] = dataset_name
             
             all_segments.extend(segments)
