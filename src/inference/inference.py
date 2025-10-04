@@ -60,7 +60,7 @@ class AmharicTTSInference:
         
         # Initialize audio processor
         self.audio_processor = AudioProcessor(
-            sample_rate=self.config['data'].get('sample_rate', 24000),
+            sampling_rate=self.config['data'].get('sample_rate', 24000),
             n_fft=self.config['data'].get('n_fft', 1024),
             hop_length=self.config['data'].get('hop_length', 256),
             win_length=self.config['data'].get('win_length', 1024),

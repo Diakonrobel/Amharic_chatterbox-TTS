@@ -36,18 +36,39 @@ class AmharicTTSTrainingApp:
         self.g2p = AmharicG2P()
         print("✓ G2P loaded")
         
-        # Initialize tokenizer
+        # Initialize tokenizer - Try merged tokenizer first
         try:
-            tokenizer_path = Path(__file__).parent.parent / "models" / "tokenizer"
-            if tokenizer_path.exists():
-                self.tokenizer = AmharicTokenizer.load(str(tokenizer_path), g2p=self.g2p)
-                print("✓ Tokenizer loaded")
-            else:
-                self.tokenizer = None
-                print("⚠ Tokenizer not found")
-        except:
+            from src.tokenizer.merged_tokenizer import MergedTokenizer
+            
+            # Priority order for tokenizer loading
+            tokenizer_candidates = [
+                Path(__file__).parent.parent / "models" / "tokenizer" / "Am_tokenizer_merged.json",
+                Path(__file__).parent.parent / "models" / "tokenizer" / "amharic_tokenizer",
+                Path(__file__).parent.parent / "models" / "tokenizer",
+            ]
+            
             self.tokenizer = None
-            print("⚠ Could not load tokenizer")
+            for tokenizer_path in tokenizer_candidates:
+                if tokenizer_path.exists():
+                    try:
+                        if 'merged' in str(tokenizer_path).lower() or tokenizer_path.suffix == '.json':
+                            # Load merged tokenizer
+                            self.tokenizer = MergedTokenizer.load(str(tokenizer_path))
+                            print(f"✓ Tokenizer loaded from {tokenizer_path.name} (vocab size: {self.tokenizer.get_vocab_size()})")
+                        else:
+                            # Load Amharic tokenizer
+                            self.tokenizer = AmharicTokenizer.load(str(tokenizer_path), g2p=self.g2p)
+                            print(f"✓ Tokenizer loaded from {tokenizer_path.name} (vocab size: {self.tokenizer.get_vocab_size()})")
+                        break
+                    except Exception as e:
+                        print(f"  Failed to load tokenizer from {tokenizer_path}: {e}")
+                        continue
+            
+            if not self.tokenizer:
+                print("⚠ Tokenizer not found - will use fallback encoding")
+        except Exception as e:
+            self.tokenizer = None
+            print(f"⚠ Could not load tokenizer: {e}")
         
         # Load TTS model for inference
         try:
@@ -408,7 +429,7 @@ class AmharicTTSTrainingApp:
                             # Use audio processor if available
                             try:
                                 from src.audio import AudioProcessor
-                                audio_proc = AudioProcessor(sample_rate=sample_rate)
+                                audio_proc = AudioProcessor(sampling_rate=sample_rate)
                                 audio_output = audio_proc.mel_to_audio(mel_np)
                             except:
                                 # Very basic fallback
