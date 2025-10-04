@@ -346,6 +346,63 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
     
     # ==================== Dataset Management Functions ====================
     
+    def _auto_split_dataset(self, dataset_path: Path, train_ratio: float = 0.80, 
+                           val_ratio: float = 0.15, test_ratio: float = 0.05) -> dict:
+        """
+        Automatically split dataset into train/val/test sets
+        Returns dict with split statistics
+        """
+        import random
+        
+        metadata_path = dataset_path / 'metadata.csv'
+        if not metadata_path.exists():
+            return {'error': f'metadata.csv not found in {dataset_path}'}
+        
+        # Load metadata
+        with open(metadata_path, 'r', encoding='utf-8') as f:
+            lines = [line.strip() for line in f if line.strip()]
+        
+        if len(lines) < 3:
+            return {'error': 'Not enough samples to split (need at least 3)'}
+        
+        # Shuffle for random split
+        random.seed(42)  # Reproducible
+        data = lines.copy()
+        random.shuffle(data)
+        
+        # Calculate splits
+        n_total = len(data)
+        n_train = int(n_total * train_ratio)
+        n_val = int(n_total * val_ratio)
+        
+        train_data = data[:n_train]
+        val_data = data[n_train:n_train + n_val]
+        test_data = data[n_train + n_val:]
+        
+        # Save splits
+        train_path = dataset_path / 'metadata_train.csv'
+        val_path = dataset_path / 'metadata_val.csv'
+        test_path = dataset_path / 'metadata_test.csv'
+        
+        with open(train_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(train_data) + '\n')
+        
+        with open(val_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(val_data) + '\n')
+        
+        with open(test_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(test_data) + '\n')
+        
+        return {
+            'success': True,
+            'train_samples': len(train_data),
+            'val_samples': len(val_data),
+            'test_samples': len(test_data),
+            'train_path': str(train_path),
+            'val_path': str(val_path),
+            'test_path': str(test_path)
+        }
+    
     def import_srt_dataset(self, srt_file, media_file, dataset_name: str, 
                           speaker_name: str, validate: bool) -> str:
         """Import SRT dataset from uploaded files"""
@@ -368,6 +425,27 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
                 auto_validate=validate
             )
             
+            # Automatically split the dataset
+            dataset_path = Path("data/srt_datasets") / dataset_name
+            split_result = self._auto_split_dataset(dataset_path)
+            
+            split_info = ""
+            if split_result.get('success'):
+                split_info = f"""
+
+🎯 **Dataset Auto-Split:**
+✅ Train set: {split_result['train_samples']} samples (80%)
+✅ Val set: {split_result['val_samples']} samples (15%)
+✅ Test set: {split_result['test_samples']} samples (5%)
+
+📝 Files created:
+- `metadata_train.csv` - For training
+- `metadata_val.csv` - For validation
+- `metadata_test.csv` - For final evaluation
+"""
+            elif 'error' in split_result:
+                split_info = f"\n\n⚠️ Auto-split skipped: {split_result['error']}"
+            
             result = f"""
 ✅ **Import Successful!**
 
@@ -383,6 +461,7 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
 - Total Characters: {stats.get('total_characters', 0):,}
 
 **Location:** `data/srt_datasets/{dataset_name}/`
+{split_info}
 
 **Next Steps:**
 1. Review statistics in the "Manage Datasets" tab
@@ -425,6 +504,46 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
         except Exception as e:
             return f"❌ Error listing datasets: {str(e)}"
     
+    def manual_split_dataset_ui(self, dataset_name: str, train_ratio: float, 
+                                val_ratio: float, test_ratio: float) -> str:
+        """Manually split an existing dataset"""
+        if not dataset_name or not dataset_name.strip():
+            return "❌ Please enter a dataset name"
+        
+        try:
+            dataset_path = Path("data/srt_datasets") / dataset_name.strip()
+            if not dataset_path.exists():
+                return f"❌ Dataset not found: {dataset_name}"
+            
+            split_result = self._auto_split_dataset(dataset_path, train_ratio, val_ratio, test_ratio)
+            
+            if 'error' in split_result:
+                return f"❌ **Split Failed**\n\nError: {split_result['error']}"
+            
+            result = f"""
+✅ **Dataset Split Successful!**
+
+**Dataset:** {dataset_name}
+
+🎯 **Split Ratios:**
+- Train: {train_ratio*100:.0f}% ({split_result['train_samples']} samples)
+- Validation: {val_ratio*100:.0f}% ({split_result['val_samples']} samples)
+- Test: {test_ratio*100:.0f}% ({split_result['test_samples']} samples)
+
+📝 **Files Created:**
+- `{split_result['train_path']}`
+- `{split_result['val_path']}`
+- `{split_result['test_path']}`
+
+✅ **Ready for Training!**
+
+These split files will be automatically used during training.
+"""
+            return result
+            
+        except Exception as e:
+            return f"❌ **Split Failed**\n\nError: {str(e)}"
+    
     def merge_datasets_gui(self, dataset_selection: str, merged_name: str, 
                           filter_invalid: bool) -> str:
         """Merge selected datasets"""
@@ -446,6 +565,24 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
                 filter_invalid=filter_invalid
             )
             
+            # Automatically split the merged dataset
+            dataset_path = Path("data/srt_datasets") / merged_name.strip()
+            split_result = self._auto_split_dataset(dataset_path)
+            
+            split_info = ""
+            if split_result.get('success'):
+                split_info = f"""
+
+🎯 **Dataset Auto-Split:**
+✅ Train set: {split_result['train_samples']} samples (80%)
+✅ Val set: {split_result['val_samples']} samples (15%)
+✅ Test set: {split_result['test_samples']} samples (5%)
+
+📝 Split files ready for training!
+"""
+            elif 'error' in split_result:
+                split_info = f"\n\n⚠️ Auto-split skipped: {split_result['error']}"
+            
             result = f"""
 ✅ **Merge Successful!**
 
@@ -459,6 +596,7 @@ For high-quality audio, integrate a proper vocoder (HiFi-GAN, etc.)
 - Average Segment: {stats.get('average_duration', 0):.2f} seconds
 
 **Location:** `data/srt_datasets/{merged_name}/`
+{split_info}
 """
             return result
             
@@ -1183,11 +1321,57 @@ The checkpoint will be saved automatically.
                             merge_btn = gr.Button("🔗 Merge Datasets", variant="primary")
                             merge_results = gr.Markdown(value="ℹ️ Enter dataset names to merge")
                     
+                    with gr.Accordion("🎯 Manual Split Dataset", open=False):
+                        gr.Markdown("""
+                        Split an existing dataset into train/val/test sets manually.
+                        
+                        ℹ️ **Note:** Datasets are automatically split during import/merge.
+                        Use this only if you need to re-split with custom ratios.
+                        """)
+                        with gr.Row():
+                            with gr.Column():
+                                split_dataset_name = gr.Textbox(
+                                    label="Dataset Name",
+                                    placeholder="my_dataset",
+                                    info="Name of dataset in data/srt_datasets/"
+                                )
+                                with gr.Row():
+                                    split_train_ratio = gr.Slider(
+                                        minimum=0.5,
+                                        maximum=0.95,
+                                        value=0.80,
+                                        step=0.05,
+                                        label="Train %"
+                                    )
+                                    split_val_ratio = gr.Slider(
+                                        minimum=0.05,
+                                        maximum=0.30,
+                                        value=0.15,
+                                        step=0.05,
+                                        label="Val %"
+                                    )
+                                    split_test_ratio = gr.Slider(
+                                        minimum=0.05,
+                                        maximum=0.20,
+                                        value=0.05,
+                                        step=0.05,
+                                        label="Test %"
+                                    )
+                                split_btn = gr.Button("🎯 Split Dataset", variant="secondary")
+                            
+                            with gr.Column():
+                                split_results = gr.Markdown(value="ℹ️ Configure split ratios and click 'Split Dataset'")
+                    
                     refresh_btn.click(fn=self.list_datasets, outputs=dataset_list)
                     merge_btn.click(
                         fn=self.merge_datasets_gui,
                         inputs=[merge_selection, merge_name_input, filter_invalid_checkbox],
                         outputs=merge_results
+                    )
+                    split_btn.click(
+                        fn=self.manual_split_dataset_ui,
+                        inputs=[split_dataset_name, split_train_ratio, split_val_ratio, split_test_ratio],
+                        outputs=split_results
                     )
                 
                 # ==================== Tab 4: Tokenizer Training ====================
