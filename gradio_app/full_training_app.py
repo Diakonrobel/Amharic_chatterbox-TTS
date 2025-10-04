@@ -298,10 +298,32 @@ class AmharicTTSTrainingApp:
             
             # Tokenize
             if self.tokenizer:
-                # Use grapheme encoding by default (works better for Amharic)
-                tokens = self.tokenizer.encode(text, use_phonemes=False)
-                token_info = f"Tokens ({len(tokens)}): {tokens[:20]}..."
-                text_ids = torch.tensor(tokens).unsqueeze(0)  # [1, seq_len]
+                try:
+                    # Use grapheme encoding by default (works better for Amharic)
+                    tokens = self.tokenizer.encode(text, use_phonemes=False)
+                    token_info = f"Tokens ({len(tokens)}): {tokens[:20]}..."
+                    text_ids = torch.tensor(tokens).unsqueeze(0)  # [1, seq_len]
+                except Exception as e:
+                    # Fallback if tokenizer encoding fails
+                    print(f"Warning: Tokenizer encoding failed: {e}, using fallback")
+                    import unicodedata
+                    text_norm = unicodedata.normalize('NFC', text)
+                    tokens = []
+                    for char in text_norm[:100]:
+                        if char.isspace():
+                            tokens.append(0)
+                        else:
+                            code_point = ord(char)
+                            if 0x1200 <= code_point <= 0x137F:  # Ethiopic
+                                token_id = 100 + (code_point - 0x1200) % 800
+                            elif 0x20 <= code_point <= 0x7F:  # ASCII
+                                token_id = code_point
+                            else:
+                                token_id = 50 + (code_point % 50)
+                            tokens.append(token_id)
+                    
+                    token_info = f"Character tokens (fallback) ({len(tokens)}): {tokens[:20]}..."
+                    text_ids = torch.tensor(tokens).unsqueeze(0)  # [1, seq_len]
             else:
                 # Fallback character-level tokenization
                 import unicodedata

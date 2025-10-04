@@ -146,14 +146,16 @@ class AmharicTokenizer:
             if self.char_tokenizer:
                 return self.char_tokenizer.encode(phoneme_text, out_type=int)
             else:
-                return [self.vocab.get(p, self.vocab["<UNK>"]) 
-                       for p in phoneme_text]
+                # Get UNK token ID with fallback
+                unk_id = self.vocab.get("<UNK>", 1)  # Default to 1 if not found
+                return [self.vocab.get(p, unk_id) for p in phoneme_text]
         else:
             if self.char_tokenizer:
                 return self.char_tokenizer.encode(text, out_type=int)
             else:
-                return [self.vocab.get(c, self.vocab["<UNK>"]) 
-                       for c in text]
+                # Get UNK token ID with fallback
+                unk_id = self.vocab.get("<UNK>", 1)  # Default to 1 if not found
+                return [self.vocab.get(c, unk_id) for c in text]
     
     def decode(self, ids: List[int]) -> str:
         """
