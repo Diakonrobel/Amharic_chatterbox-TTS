@@ -1309,9 +1309,9 @@ The checkpoint will be saved automatically.
                                 )
                                 new_size_input = gr.Number(
                                     label="New Vocab Size",
-                                    value=3000,
+                                    value=2535,
                                     precision=0,
-                                    info="Must be larger than 2454 (original size)"
+                                    info="Merged tokenizer size: 2535 (Chatterbox 2454 + Amharic 81)"
                                 )
                                 extended_name = gr.Textbox(
                                     label="Output Name",

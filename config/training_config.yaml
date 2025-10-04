@@ -14,7 +14,7 @@ model:
   
   # Vocabulary settings (updated for Chatterbox multilingual + Amharic)
   original_vocab_size: 2454  # Base Chatterbox multilingual vocabulary
-  n_vocab: 3000  # Extended vocabulary with Amharic tokens
+  n_vocab: 2535  # Merged vocabulary (Chatterbox 2454 + Amharic 81 tokens)
   use_phonemes: true
   
   # Freeze original embeddings to preserve multilingual capabilities

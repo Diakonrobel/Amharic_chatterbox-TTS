@@ -190,7 +190,82 @@ def load_config(config_path: str) -> Dict:
     return config
 
 
-def setup_dataloaders(config: Dict):
+def detect_tokenizer(config: Dict):
+    """Detect and load the appropriate tokenizer"""
+    from pathlib import Path
+    
+    tokenizer = None
+    tokenizer_vocab_size = None
+    
+    # Priority 1: Use tokenizer from config if specified
+    if 'tokenizer' in config.get('paths', {}):
+        tokenizer_path = Path(config['paths']['tokenizer'])
+        TRAINING_STATE.log(f"Trying to load tokenizer from config: {tokenizer_path}")
+        
+        # Check if it's a JSON file (merged tokenizer) or directory (sentencepiece)
+        if tokenizer_path.suffix == '.json' and tokenizer_path.exists():
+            try:
+                from src.tokenizer.merged_tokenizer import MergedTokenizer
+                tokenizer = MergedTokenizer(str(tokenizer_path))
+                tokenizer_vocab_size = tokenizer.get_vocab_size()
+                TRAINING_STATE.log(f"✓ Loaded MERGED tokenizer from {tokenizer_path}")
+                TRAINING_STATE.log(f"   Vocab size: {tokenizer_vocab_size} (Chatterbox 23 langs + Amharic)")
+                return tokenizer, tokenizer_vocab_size
+            except Exception as e:
+                TRAINING_STATE.log(f"⚠ Failed to load tokenizer from config: {str(e)}")
+        elif tokenizer_path.is_dir() and (tokenizer_path / "sentencepiece.model").exists():
+            try:
+                from src.tokenizer.amharic_tokenizer import AmharicTokenizer
+                from src.g2p.amharic_g2p import AmharicG2P
+                g2p = AmharicG2P()
+                tokenizer = AmharicTokenizer.load(str(tokenizer_path), g2p=g2p)
+                tokenizer_vocab_size = tokenizer.get_vocab_size()
+                TRAINING_STATE.log(f"✓ Loaded tokenizer from config: {tokenizer_path}")
+                TRAINING_STATE.log(f"   Vocab size: {tokenizer_vocab_size}")
+                return tokenizer, tokenizer_vocab_size
+            except Exception as e:
+                TRAINING_STATE.log(f"⚠ Failed to load tokenizer from config: {str(e)}")
+    
+    # Priority 2: Try merged tokenizer (Chatterbox + Amharic)
+    merged_tokenizer_path = Path("models/tokenizer/Am_tokenizer_merged.json")
+    if merged_tokenizer_path.exists():
+        try:
+            from src.tokenizer.merged_tokenizer import MergedTokenizer
+            tokenizer = MergedTokenizer(str(merged_tokenizer_path))
+            tokenizer_vocab_size = tokenizer.get_vocab_size()
+            TRAINING_STATE.log(f"✓ Loaded MERGED tokenizer from {merged_tokenizer_path}")
+            TRAINING_STATE.log(f"   Vocab size: {tokenizer_vocab_size} (Chatterbox 23 langs + Amharic)")
+            return tokenizer, tokenizer_vocab_size
+        except Exception as e:
+            TRAINING_STATE.log(f"⚠ Failed to load merged tokenizer: {str(e)}")
+    
+    # Priority 3: Try amharic-only tokenizer as fallback
+    tokenizer_paths = [
+        "models/tokenizer/amharic_tokenizer",
+        "models/tokenizer"
+    ]
+    
+    for tokenizer_path in tokenizer_paths:
+        tokenizer_dir = Path(tokenizer_path)
+        if tokenizer_dir.exists() and (tokenizer_dir / "sentencepiece.model").exists():
+            try:
+                from src.tokenizer.amharic_tokenizer import AmharicTokenizer
+                from src.g2p.amharic_g2p import AmharicG2P
+                g2p = AmharicG2P()
+                tokenizer = AmharicTokenizer.load(str(tokenizer_dir), g2p=g2p)
+                tokenizer_vocab_size = tokenizer.get_vocab_size()
+                TRAINING_STATE.log(f"✓ Loaded Amharic-only tokenizer from {tokenizer_path}")
+                TRAINING_STATE.log(f"   Vocab size: {tokenizer_vocab_size}")
+                return tokenizer, tokenizer_vocab_size
+            except Exception as e:
+                TRAINING_STATE.log(f"⚠ Failed to load from {tokenizer_path}: {str(e)}")
+    
+    TRAINING_STATE.log("⚠ WARNING: No tokenizer loaded! Will use fallback character encoding.")
+    # Return None for tokenizer, but estimate a reasonable vocab size for fallback encoding
+    return None, 1000  # Fallback vocab size for character-based encoding
+
+
+def setup_dataloaders(config: Dict, tokenizer):
     """Setup training and validation dataloaders"""
     from pathlib import Path
     
@@ -198,44 +273,6 @@ def setup_dataloaders(config: Dict):
     
     # Initialize audio processor
     audio_processor = AudioProcessor()
-    
-    # Try to load tokenizer if available
-    tokenizer = None
-    
-    # Priority 1: Try merged tokenizer (Chatterbox + Amharic)
-    merged_tokenizer_path = Path("models/tokenizer/Am_tokenizer_merged.json")
-    if merged_tokenizer_path.exists():
-        try:
-            from src.tokenizer.merged_tokenizer import MergedTokenizer
-            tokenizer = MergedTokenizer(str(merged_tokenizer_path))
-            TRAINING_STATE.log(f"✓ Loaded MERGED tokenizer from {merged_tokenizer_path}")
-            TRAINING_STATE.log(f"   Vocab size: {tokenizer.get_vocab_size()} (Chatterbox 23 langs + Amharic)")
-        except Exception as e:
-            TRAINING_STATE.log(f"⚠ Failed to load merged tokenizer: {str(e)}")
-    
-    # Priority 2: Try amharic-only tokenizer as fallback
-    if tokenizer is None:
-        tokenizer_paths = [
-            "models/tokenizer/amharic_tokenizer",
-            "models/tokenizer"
-        ]
-        
-        for tokenizer_path in tokenizer_paths:
-            tokenizer_dir = Path(tokenizer_path)
-            if tokenizer_dir.exists() and (tokenizer_dir / "sentencepiece.model").exists():
-                try:
-                    from src.tokenizer.amharic_tokenizer import AmharicTokenizer
-                    from src.g2p.amharic_g2p import AmharicG2P
-                    g2p = AmharicG2P()
-                    tokenizer = AmharicTokenizer.load(str(tokenizer_dir), g2p=g2p)
-                    TRAINING_STATE.log(f"✓ Loaded Amharic-only tokenizer from {tokenizer_path}")
-                    TRAINING_STATE.log(f"   Vocab size: {tokenizer.get_vocab_size()}")
-                    break
-                except Exception as e:
-                    TRAINING_STATE.log(f"⚠ Failed to load from {tokenizer_path}: {str(e)}")
-    
-    if tokenizer is None:
-        TRAINING_STATE.log("⚠ WARNING: No tokenizer loaded! Will use fallback character encoding.")
     
     # Create datasets - handle multiple config formats
     if 'data_dir' in config.get('paths', {}):
@@ -295,17 +332,21 @@ def setup_dataloaders(config: Dict):
     TRAINING_STATE.log(f"✓ Val samples: {len(val_dataset)}")
     TRAINING_STATE.log(f"✓ Batch size: {batch_size}")
     
-    return train_loader, val_loader
+    return train_loader, val_loader, tokenizer
 
 
-def setup_model(config: Dict) -> nn.Module:
+def setup_model(config: Dict, vocab_size: int) -> nn.Module:
     """Setup real T3 model for training"""
     TRAINING_STATE.log("Setting up SimplifiedT3Model...")
+    
+    # Use detected vocab size from tokenizer, not config
+    # This ensures model and tokenizer are always in sync
+    TRAINING_STATE.log(f"Using vocab size from tokenizer: {vocab_size}")
     
     # Create T3 model with proper configuration
     # Use d_model=1024 to match Chatterbox pretrained weights
     model = SimplifiedT3Model(
-        vocab_size=config['model']['n_vocab'],
+        vocab_size=vocab_size,
         d_model=1024,  # Model dimension (matches Chatterbox multilingual)
         nhead=8,  # Attention heads
         num_encoder_layers=6,  # Transformer layers
@@ -316,7 +357,7 @@ def setup_model(config: Dict) -> nn.Module:
     )
     
     TRAINING_STATE.log(f"✓ T3 Model created:")
-    TRAINING_STATE.log(f"   Vocab size: {config['model']['n_vocab']}")
+    TRAINING_STATE.log(f"   Vocab size: {vocab_size}")
     TRAINING_STATE.log(f"   Model dim: 1024 (matches Chatterbox)")
     TRAINING_STATE.log(f"   Mel channels: {config['data']['n_mel_channels']}")
     
@@ -338,6 +379,12 @@ def setup_model(config: Dict) -> nn.Module:
     # Freeze original embeddings if configured
     if config['model']['freeze_original_embeddings']:
         freeze_idx = config['model']['freeze_until_index']
+        # Validate freeze_idx doesn't exceed vocab size
+        if freeze_idx > vocab_size:
+            TRAINING_STATE.log(f"⚠ Warning: freeze_until_index ({freeze_idx}) > vocab_size ({vocab_size})")
+            TRAINING_STATE.log(f"   Adjusting to freeze all embeddings except last {vocab_size - 2454} new tokens")
+            freeze_idx = min(freeze_idx, vocab_size - 100)  # Leave at least 100 trainable
+        
         try:
             # Freeze the text embedding layer
             if hasattr(model, 'text_embedding'):
@@ -346,7 +393,7 @@ def setup_model(config: Dict) -> nn.Module:
                         # Freeze only the first freeze_idx embeddings
                         param.requires_grad = False
                         param.data[:freeze_idx].requires_grad = False
-                TRAINING_STATE.log(f"✓ Frozen first {freeze_idx} embeddings")
+                TRAINING_STATE.log(f"✓ Frozen first {freeze_idx} embeddings (out of {vocab_size} total)")
             else:
                 TRAINING_STATE.log("⚠ Could not freeze embeddings - layer not found")
         except Exception as e:
@@ -576,8 +623,13 @@ def train(config_path: str, resume_from: Optional[str] = None):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         TRAINING_STATE.log(f"✓ Using device: {device}")
         
-        # Setup model
-        model = setup_model(config)
+        # CRITICAL: Detect tokenizer FIRST to get correct vocab size
+        TRAINING_STATE.log("Detecting tokenizer...")
+        tokenizer, vocab_size = detect_tokenizer(config)
+        TRAINING_STATE.log(f"✓ Tokenizer detected with vocab size: {vocab_size}")
+        
+        # Setup model with correct vocab size from tokenizer
+        model = setup_model(config, vocab_size)
         model = model.to(device)
         
         # Print model info
@@ -595,8 +647,15 @@ def train(config_path: str, resume_from: Optional[str] = None):
         )
         TRAINING_STATE.log("✓ Loss function initialized")
         
-        # Setup dataloaders
-        train_loader, val_loader = setup_dataloaders(config)
+        # Setup dataloaders (pass tokenizer to ensure consistency)
+        train_loader, val_loader, _ = setup_dataloaders(config, tokenizer)
+        
+        # VALIDATION: Ensure tokenizer and model are aligned
+        if tokenizer is not None:
+            actual_tokenizer_size = tokenizer.get_vocab_size()
+            if actual_tokenizer_size != vocab_size:
+                raise ValueError(f"Tokenizer vocab size mismatch! Expected {vocab_size}, got {actual_tokenizer_size}")
+            TRAINING_STATE.log(f"✓ Validation passed: Tokenizer and model vocab sizes match ({vocab_size})")
         
         # Setup mixed precision
         scaler = GradScaler(device='cuda' if torch.cuda.is_available() else 'cpu') if config['training']['use_amp'] else None
