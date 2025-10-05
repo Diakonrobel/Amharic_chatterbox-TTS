@@ -212,8 +212,13 @@ class TrainingManager:
     
     def __init__(self, config: Dict):
         self.config = config
-        self.device = torch.device(config['training']['device'])
-        self.use_amp = config['training'].get('use_amp', True)
+        
+        # Auto-detect device if not specified
+        device_str = config.get('training', {}).get('device', 'cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(device_str)
+        logger.info(f"Using device: {self.device}")
+        
+        self.use_amp = config.get('training', {}).get('use_amp', True)
         
         # Initialize components
         logger.info("Initializing training components...")
@@ -223,10 +228,11 @@ class TrainingManager:
         self.tokenizer = self._load_tokenizer()
         
         # Audio processor
+        data_config = config.get('data', {})
         self.audio_processor = AudioProcessor(
-            sampling_rate=config['data']['sampling_rate'],
-            n_mel_channels=config['data']['n_mel_channels'],
-            hop_length=config['data']['hop_length']
+            sampling_rate=data_config.get('sampling_rate', 22050),
+            n_mel_channels=data_config.get('n_mel_channels', 80),
+            hop_length=data_config.get('hop_length', 256)
         )
         
         # Model
@@ -234,7 +240,7 @@ class TrainingManager:
         self.model.to(self.device)
         
         # Load pretrained if specified
-        if config['finetuning']['enabled']:
+        if config.get('finetuning', {}).get('enabled', False):
             self._load_pretrained()
         
         # Freeze embeddings if specified
@@ -263,18 +269,19 @@ class TrainingManager:
         self.scaler = GradScaler() if self.use_amp else None
         
         # TensorBoard
-        log_dir = Path(config['logging']['log_dir']) / datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_base_dir = config.get('logging', {}).get('log_dir', 'logs')
+        log_dir = Path(log_base_dir) / datetime.now().strftime('%Y%m%d_%H%M%S')
         self.writer = SummaryWriter(log_dir=log_dir)
         logger.info(f"TensorBoard logs: {log_dir}")
         
         # Load checkpoint if resuming
-        resume_checkpoint = config['training'].get('resume_checkpoint')
+        resume_checkpoint = config.get('training', {}).get('resume_checkpoint')
         if resume_checkpoint and os.path.exists(resume_checkpoint):
             self._load_checkpoint(resume_checkpoint)
     
     def _load_tokenizer(self):
         """Load Amharic tokenizer"""
-        tokenizer_dir = self.config['paths']['tokenizer']
+        tokenizer_dir = self.config.get('paths', {}).get('tokenizer', 'models/tokenizer')
         
         if os.path.exists(tokenizer_dir):
             logger.info(f"Loading tokenizer from {tokenizer_dir}")
@@ -300,7 +307,7 @@ class TrainingManager:
     
     def _load_pretrained(self):
         """Load pretrained Chatterbox weights"""
-        pretrained_path = self.config['finetuning']['pretrained_model']
+        pretrained_path = self.config.get('finetuning', {}).get('pretrained_model', '')
         
         if not os.path.exists(pretrained_path):
             logger.warning(f"Pretrained model not found: {pretrained_path}")
@@ -397,7 +404,7 @@ class TrainingManager:
     
     def _save_checkpoint(self, epoch, val_loss=None):
         """Save training checkpoint"""
-        checkpoint_dir = Path(self.config['paths']['checkpoints'])
+        checkpoint_dir = Path(self.config.get('paths', {}).get('checkpoints', 'models/checkpoints'))
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         checkpoint_path = checkpoint_dir / f"checkpoint_epoch{epoch}_step{self.global_step}.pt"

@@ -47,6 +47,9 @@ data:
 
 # Training hyperparameters
 training:
+  # Device configuration
+  device: "cuda"  # Use "cuda" for GPU, "cpu" for CPU (auto-detected if not specified)
+  
   # Optimization
   optimizer: "AdamW"
   learning_rate: 1.0e-5  # CRITICAL: Low LR for finetuning (was 2e-4)
