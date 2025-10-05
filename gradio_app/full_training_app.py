@@ -1121,6 +1121,12 @@ Then try again.
             config['model']['freeze_original_embeddings'] = freeze_embeddings
             config['model']['freeze_until_index'] = freeze_until_idx
             
+            # CRITICAL: Use FULL Chatterbox model for finetuning
+            if 'finetuning' not in config:
+                config['finetuning'] = {}
+            config['finetuning']['enabled'] = True
+            config['finetuning']['pretrained_model'] = 'models/pretrained/chatterbox/t3_mtl23ls_v2.safetensors'
+            
             # Handle tokenizer selection
             if selected_tokenizer and not selected_tokenizer.startswith("Auto-detect") and not selected_tokenizer.startswith("No tokenizers"):
                 # Extract filename from dropdown text (remove vocab info)
