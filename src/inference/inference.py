@@ -170,7 +170,8 @@ class AmharicTTSInference:
             # Priority order for tokenizer loading
             tokenizer_candidates = [
                 # CRITICAL: Load the merged tokenizer with 2559 tokens!
-                project_root / 'tokenizers' / 'am-merged_merged.json',  # CORRECT tokenizer
+                project_root / 'models' / 'tokenizer' / 'am-merged_merged.json',  # CORRECT PATH!
+                project_root / 'tokenizers' / 'am-merged_merged.json',
                 project_root / 'models' / 'tokenizer' / 'Am_tokenizer_merged.json',
                 project_root / 'models' / 'tokenizer' / 'amharic_tokenizer',
                 project_root / 'models' / 'tokenizer',
