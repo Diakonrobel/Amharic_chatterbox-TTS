@@ -1,0 +1,41 @@
+════════════════════════════════════════════════════════════════════════
+         🚀 COPY AND PASTE THIS ON LIGHTNING AI
+════════════════════════════════════════════════════════════════════════
+
+ONE-LINER (copy all 5 lines together):
+
+pkill -f gradio && \
+cd /teamspace/studios/this_studio/Amharic_chatterbox-TTS && \
+git pull origin main && \
+find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null && \
+python gradio_app/full_training_app.py --share
+
+────────────────────────────────────────────────────────────────────────
+
+OR RUN STEP-BY-STEP:
+
+1. pkill -f gradio
+
+2. cd /teamspace/studios/this_studio/Amharic_chatterbox-TTS
+
+3. git pull origin main
+
+4. find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null
+
+5. python gradio_app/full_training_app.py --share
+
+────────────────────────────────────────────────────────────────────────
+
+✅ EXPECTED RESULT:
+
+When Gradio starts and you test synthesis, you should see:
+
+   ✓ Tokenizer loaded (vocab size: 2559)  ← CORRECT!
+
+NOT:
+
+   ✓ Tokenizer loaded (vocab size: 1000)  ← WRONG!
+
+Then audio will be CLEAR speech, not noise!
+
+════════════════════════════════════════════════════════════════════════
