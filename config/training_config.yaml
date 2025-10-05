@@ -88,7 +88,7 @@ training:
 # Fine-tuning from pretrained model
 finetuning:
   enabled: true
-  pretrained_model: "models/pretrained/chatterbox_extended.pt"  # Updated to use extended model
+  pretrained_model: models/pretrained/chatterbox/t3_mtl23ls_v2.safetensors  # FULL Chatterbox model
   
   # What to freeze (based on video experience)
   freeze_encoder: false

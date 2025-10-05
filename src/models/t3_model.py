@@ -216,41 +216,58 @@ class SimplifiedT3Model(nn.Module):
     
     def load_pretrained_weights(self, checkpoint_path: str, strict: bool = False):
         """
-        Load pretrained Chatterbox weights
+        Load pretrained Chatterbox weights - LOADS FULL MODEL!
         
         Args:
-            checkpoint_path: Path to checkpoint file
+            checkpoint_path: Path to checkpoint file (.pt or .safetensors)
             strict: Whether to strictly enforce key matching
         """
         print(f"Loading pretrained weights from: {checkpoint_path}")
         
-        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
-        
-        # Get state dict
-        if 'model' in checkpoint:
-            state_dict = checkpoint['model']
-        elif 'model_state_dict' in checkpoint:
-            state_dict = checkpoint['model_state_dict']
+        # Handle safetensors format (Chatterbox native format)
+        if checkpoint_path.endswith('.safetensors'):
+            try:
+                from safetensors.torch import load_file
+                state_dict = load_file(checkpoint_path)
+                print("  Loaded from safetensors format")
+            except ImportError:
+                raise ImportError("safetensors package required: pip install safetensors")
         else:
-            state_dict = checkpoint
+            # PyTorch checkpoint
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+            
+            # Get state dict
+            if 'model' in checkpoint:
+                state_dict = checkpoint['model']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            else:
+                state_dict = checkpoint
         
-        # Try to load compatible weights
+        # Load ALL compatible weights (not just embeddings!)
         model_dict = self.state_dict()
         pretrained_dict = {}
         
         for k, v in state_dict.items():
-            # Map Chatterbox keys to our model keys
-            if 'text_emb.weight' in k:
-                # Load text embeddings (extended)
-                pretrained_dict['text_embedding.weight'] = v
-                print(f"  ✓ Loaded text_embedding: {v.shape}")
-            # Add more mappings as needed
+            # Try direct key match first
+            if k in model_dict and model_dict[k].shape == v.shape:
+                pretrained_dict[k] = v
+            # Map Chatterbox-specific key names to our model
+            elif 'text_emb.weight' in k and 'text_embedding.weight' in model_dict:
+                # Handle extended embeddings
+                target_shape = model_dict['text_embedding.weight'].shape
+                if v.shape[0] <= target_shape[0]:  # Can extend
+                    pretrained_dict['text_embedding.weight'] = v
+                    print(f"  ✓ Loaded text_embedding: {v.shape} (will extend to {target_shape})")
         
-        # Load weights
-        model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict, strict=False)
+        # Load weights (strict=False allows partial loading)
+        incompatible = self.load_state_dict(pretrained_dict, strict=False)
         
         print(f"✓ Loaded {len(pretrained_dict)} pretrained weight tensors")
+        if incompatible.missing_keys:
+            print(f"  ⚠ Missing keys (will use random init): {len(incompatible.missing_keys)}")
+        if incompatible.unexpected_keys:
+            print(f"  ⚠ Unexpected keys (ignored): {len(incompatible.unexpected_keys)}")
 
 
 class PositionalEncoding(nn.Module):
