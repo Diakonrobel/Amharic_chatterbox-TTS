@@ -42,6 +42,8 @@ class AmharicTTSTrainingApp:
             
             # Priority order for tokenizer loading
             tokenizer_candidates = [
+                # CRITICAL: Load the merged tokenizer with 2559 tokens first!
+                Path(__file__).parent.parent / "models" / "tokenizer" / "am-merged_merged.json",
                 Path(__file__).parent.parent / "models" / "tokenizer" / "Am_tokenizer_merged.json",
                 Path(__file__).parent.parent / "models" / "tokenizer" / "amharic_tokenizer",
                 Path(__file__).parent.parent / "models" / "tokenizer",
