@@ -231,8 +231,12 @@ class TrainingManager:
         data_config = config.get('data', {})
         self.audio_processor = AudioProcessor(
             sampling_rate=data_config.get('sampling_rate', 22050),
-            n_mel_channels=data_config.get('n_mel_channels', 80),
-            hop_length=data_config.get('hop_length', 256)
+            n_mels=data_config.get('n_mel_channels', 80),  # Use n_mels to match AudioProcessor
+            hop_length=data_config.get('hop_length', 256),
+            n_fft=data_config.get('filter_length', 1024),
+            win_length=data_config.get('win_length', 1024),
+            fmin=data_config.get('mel_fmin', 0.0),
+            fmax=data_config.get('mel_fmax', 8000.0)
         )
         
         # Model
