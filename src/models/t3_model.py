@@ -247,21 +247,49 @@ class SimplifiedT3Model(nn.Module):
         # Load ALL compatible weights (not just embeddings!)
         model_dict = self.state_dict()
         pretrained_dict = {}
+        extended_embeddings = {}
         
         for k, v in state_dict.items():
-            # Try direct key match first
+            # Check if this is an embedding that needs extension
+            if 'text_emb' in k or 'text_embedding' in k:
+                target_key = 'text_embedding.weight' if 'text_embedding.weight' in model_dict else k
+                if target_key in model_dict:
+                    target_shape = model_dict[target_key].shape
+                    if v.shape[0] < target_shape[0] and v.shape[1] == target_shape[1]:
+                        # Embedding needs extension - store for manual handling
+                        extended_embeddings[target_key] = v
+                        print(f"  ✓ Will extend embedding: {v.shape} → {target_shape}")
+                        continue
+                    elif v.shape == target_shape:
+                        pretrained_dict[target_key] = v
+                        print(f"  ✓ Loaded {target_key}: {v.shape}")
+                        continue
+            
+            # Try direct key match for all other weights
             if k in model_dict and model_dict[k].shape == v.shape:
                 pretrained_dict[k] = v
-            # Map Chatterbox-specific key names to our model
-            elif 'text_emb.weight' in k and 'text_embedding.weight' in model_dict:
-                # Handle extended embeddings
-                target_shape = model_dict['text_embedding.weight'].shape
-                if v.shape[0] <= target_shape[0]:  # Can extend
-                    pretrained_dict['text_embedding.weight'] = v
-                    print(f"  ✓ Loaded text_embedding: {v.shape} (will extend to {target_shape})")
+                print(f"  ✓ Loaded {k}: {v.shape}")
         
-        # Load weights (strict=False allows partial loading)
+        # First, load all compatible weights
         incompatible = self.load_state_dict(pretrained_dict, strict=False)
+        
+        # Then manually extend embeddings if needed
+        for emb_key, pretrained_emb in extended_embeddings.items():
+            if emb_key == 'text_embedding.weight':
+                pretrained_size, emb_dim = pretrained_emb.shape
+                extended_size, _ = model_dict[emb_key].shape
+                
+                # Get current (randomly initialized) embedding
+                current_emb = self.text_embedding.weight.data
+                
+                # Copy pretrained embeddings to first N positions
+                current_emb[:pretrained_size, :] = pretrained_emb
+                
+                # Initialize new embeddings (Amharic tokens) with small random values
+                # Use same initialization as original model
+                nn.init.normal_(current_emb[pretrained_size:], mean=0.0, std=0.02)
+                
+                print(f"  ✓ Extended {emb_key}: copied {pretrained_size} pretrained, initialized {extended_size - pretrained_size} new")
         
         print(f"✓ Loaded {len(pretrained_dict)} pretrained weight tensors")
         if incompatible.missing_keys:
